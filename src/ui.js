@@ -183,19 +183,28 @@ function renderHabit(wide) {
   if (st().showBook) h += bookCard();
   return h + '</div>';
 }
+const books = () => P().books || (P().book ? [{ id: 'b0', ...P().book }] : []);
+function bookForm(b) {
+  return `<div class="card stack" style="background:var(--surface)"><div class="bookform"><label class="full">책 제목<input class="field" id="bk-title" value="${esc(b?.title || '')}" autocomplete="off"></label>
+    <label>지금 쪽<input class="field" id="bk-page" type="number" inputmode="numeric" min="0" value="${b?.page ?? 0}"></label>
+    <label>전체 쪽<input class="field" id="bk-total" type="number" inputmode="numeric" min="1" value="${b?.total || ''}"></label></div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">${b ? `<button class="btn danger sm" data-act="bookDel" data-id="${esc(b.id)}">${armed('bdel:' + b.id) ? '한 번 더 누르면 지워져요' : '지우기'}</button>` : ''}<button class="btn ghost sm" data-act="bookEdit" data-id="">취소</button><button class="btn sm" data-act="bookSave" data-id="${esc(b?.id || '')}">저장</button></div></div>`;
+}
 function bookCard() {
-  const b = P().book;
-  let h = `<div class="card stack"><div class="row"><span class="lbl b">지금 읽는 책</span>${b && !U.bookEdit ? '<button class="btn ghost sm" data-act="bookEdit">수정</button>' : ''}</div>`;
-  if (!b || U.bookEdit) {
-    h += `<div class="bookform"><label class="full">책 제목<input class="field" id="bk-title" value="${esc(b?.title || '')}" autocomplete="off"></label>
-      <label>지금 쪽<input class="field" id="bk-page" type="number" inputmode="numeric" min="0" value="${b?.page ?? 0}"></label>
-      <label>전체 쪽<input class="field" id="bk-total" type="number" inputmode="numeric" min="1" value="${b?.total || ''}"></label></div>
-      <div style="display:flex;gap:6px;justify-content:flex-end">${b ? `<button class="btn danger sm" data-act="bookClear">${armed('book') ? '한 번 더 누르면 지워져요' : '책 지우기'}</button>` : ''}${U.bookEdit ? '<button class="btn ghost sm" data-act="bookEdit">취소</button>' : ''}<button class="btn sm" data-act="bookSave">저장</button></div>`;
-  } else {
+  const all = books(), reading = all.filter(b => !b.done), done = all.filter(b => b.done);
+  let h = `<div class="card stack"><div class="row"><span class="lbl b">지금 읽는 책${reading.length > 1 ? ` ${reading.length}권` : ''}</span>${U.bookEdit !== 'new' ? '<button class="btn ghost sm" data-act="bookEdit" data-id="new">+ 책 추가</button>' : ''}</div>`;
+  if (U.bookEdit === 'new') h += bookForm(null);
+  if (!reading.length && U.bookEdit !== 'new') h += '<div class="sub">읽고 있는 책을 추가해 보세요. 여러 권도 함께 기록할 수 있어요.</div>';
+  for (const b of reading) {
+    if (U.bookEdit === b.id) { h += bookForm(b); continue; }
     const pct = Math.round(b.page / b.total * 100);
-    h += `<div class="bookrow"><div class="cover">${esc(b.title)}</div><div class="binfo"><b style="overflow-wrap:anywhere">${esc(b.title)}</b>
+    h += `<div class="bookrow"><div class="cover">${esc(b.title)}</div><div class="binfo"><div class="row" style="align-items:flex-start"><b style="overflow-wrap:anywhere;min-width:0">${esc(b.title)}</b><button class="more" data-act="bookEdit" data-id="${esc(b.id)}" aria-label="책 수정">${I.dots}</button></div>
       <div class="row"><span class="sub">p.${b.page} / ${b.total}</span><b>${pct}%</b></div><div class="bar"><i style="width:${Math.min(100, pct)}%"></i></div>
-      <div class="bk-btns"><button class="btn ghost sm" data-act="book" data-v="10">+10쪽</button><button class="btn ghost sm" data-act="book" data-v="30">+30쪽</button><button class="btn ghost sm" data-act="book" data-v="-10">-10쪽</button></div></div></div>`;
+      <div class="bk-btns"><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="10">+10쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="30">+30쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="-10">-10쪽</button></div></div></div>`;
+  }
+  if (done.length) {
+    h += `<button class="sdhead" data-act="booksDone" style="border-top:1px dashed var(--line);padding-top:10px">다 읽은 책 <span class="pill-tag">${done.length}</span><span class="tog">${U.booksDone ? '접기' : '펼치기'}</span></button>`;
+    if (U.booksDone) h += done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).map(b => `<div class="plan-i"><span class="nm">📖 ${esc(b.title)}<br><span class="sub">${b.doneAt ? fmtDay(key(new Date(b.doneAt))) + ' 완독 · ' : ''}${b.total}쪽</span></span><button class="btn ghost sm" data-act="bookReopen" data-id="${esc(b.id)}">다시 읽기</button><button class="xbtn${armed('bdel:' + b.id) ? ' warn' : ''}" data-act="bookDel" data-id="${esc(b.id)}" aria-label="삭제">${armed('bdel:' + b.id) ? '삭제' : '×'}</button></div>`).join('');
   }
   return h + '</div>';
 }
@@ -300,22 +309,24 @@ function friendDay(f) {
 }
 function renderFriends() {
   const so = S.social, B = S.backend.social;
-  let h = `${errBar()}<div class="row" style="margin-bottom:14px"><h2 class="title" style="margin:0">친구</h2>${so.pub && !U.editProfile && canAdd() ? `<button class="btn ghost sm" data-act="addOpen">${U.addOpen ? '닫기' : '+ 친구 추가'}</button>` : ''}</div>`;
+  let h = `${errBar()}<div class="row" style="margin-bottom:14px"><h2 class="title" style="margin:0">친구</h2></div>`;
   if (!B?.enabled) return h + '<div class="card"><div class="sub">친구 기능은 로그인해서 쓸 때만 쓸 수 있어요.</div></div>';
   if (so.error) return h + `<div class="card"><div class="sub">${esc(so.error)}</div></div>`;
   if (so.pub === undefined) return h + '<div class="card"><div class="sub">불러오는 중…</div></div>';
   if (!so.pub || U.editProfile) return h + profileForm();
   h += `<div class="stack"><div class="card me">${avatarHTML(so.pub.avatar, 52)}<div style="flex:1;min-width:0"><div class="nm">${esc(so.pub.nickname)}</div><div class="sub">내 친구 코드 <span class="code">${esc(so.pub.code)}</span></div></div>
     <div style="display:flex;flex-direction:column;gap:6px"><button class="btn ghost sm" data-act="copyCode">코드 복사</button><button class="btn ghost sm" data-act="editProfile">편집</button></div></div>`;
-  if (U.addOpen) h += `<div class="card stack"><div class="lbl b">친구 추가</div><div class="inline-add"><input id="codeinput" placeholder="친구 코드 (예: MONG-7K2Q)" autocomplete="off" autocapitalize="characters" enterkeyhint="send"><button class="btn sm" data-act="sendReq"${U.busy ? ' disabled' : ''}>요청</button></div><div class="hint">친구는 최대 3명까지예요. 친구가 요청을 수락하면 서로의 ‘친구 공개’ 할 일이 보여요.</div></div>`;
+  if (canAdd()) h += `<button class="foldbtn${U.addOpen ? ' open' : ''}" data-act="addOpen" aria-expanded="${U.addOpen}"><span>＋ 친구 추가</span><span class="tog">${U.addOpen ? '접기' : '펼치기'}</span></button>`;
+  if (U.addOpen && canAdd()) h += `<div class="card stack fold-body"><div class="inline-add"><input id="codeinput" placeholder="친구 코드 (예: MONG-7K2Q)" autocomplete="off" autocapitalize="characters" enterkeyhint="send"><button class="btn sm" data-act="sendReq"${U.busy ? ' disabled' : ''}>요청</button></div><div class="hint">친구는 최대 3명까지예요. 친구가 요청을 수락하면 서로의 ‘친구 공개’ 할 일이 보여요.</div></div>`;
   if (so.incoming.length) h += `<div class="card stack"><div class="lbl b">받은 친구 요청</div>${so.incoming.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 32)}${esc(fprof(u).nickname)}</span><span style="display:flex;gap:6px"><button class="btn ghost sm" data-act="decline" data-id="${esc(u)}">거절</button><button class="btn sm" data-act="accept" data-id="${esc(u)}"${so.friends.length >= 3 ? ' disabled' : ''}>수락</button></span></div>`).join('')}</div>`;
   if (so.friends.length) {
     const f = so.friends.includes(U.friend) ? U.friend : so.friends[0];
     h += `<div class="friends">${so.friends.map(u => `<button class="fr${u === f ? ' on' : ''}" data-act="friend" data-id="${esc(u)}">${avatarHTML(fprof(u).avatar, 52)}<span>${esc(fprof(u).nickname)}</span></button>`).join('')}</div>`;
     h += friendDay(f);
-  } else if (!so.incoming.length) h += `<div class="card"><div class="sub">아직 친구가 없어요. 내 친구 코드를 알려주거나, 친구의 코드로 요청해 보세요.</div></div>`;
+  } else if (!so.incoming.length) h += `<div class="card"><div class="sub">아직 친구가 없어요. 내 친구 코드를 알려주거나, 아래 ‘친구 추가’에서 친구 코드로 요청해 보세요.</div></div>`;
   if (so.outgoing.length) h += `<div class="card stack"><div class="lbl b">보낸 요청</div>${so.outgoing.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)} <span class="sub">수락 기다리는 중</span></span><button class="btn ghost sm" data-act="cancelReq" data-id="${esc(u)}">취소</button></div>`).join('')}</div>`;
-  if (so.friends.length) h += `<div class="card stack"><div class="lbl b">친구 관리</div>${so.friends.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)}</span><button class="xbtn${armed('unf:' + u) ? ' warn' : ''}" data-act="unfriend" data-id="${esc(u)}" style="font-size:12px">${armed('unf:' + u) ? '정말 끊기' : '친구 끊기'}</button></div>`).join('')}</div>`;
+  if (so.friends.length) h += `<button class="foldbtn${U.manageOpen ? ' open' : ''}" data-act="manageOpen" aria-expanded="${!!U.manageOpen}"><span>친구 관리</span><span class="tog">${U.manageOpen ? '접기' : '펼치기'}</span></button>`;
+  if (so.friends.length && U.manageOpen) h += `<div class="card stack fold-body">${so.friends.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)}</span><button class="xbtn${armed('unf:' + u) ? ' warn' : ''}" data-act="unfriend" data-id="${esc(u)}" style="font-size:12px">${armed('unf:' + u) ? '정말 끊기' : '친구 끊기'}</button></div>`).join('')}</div>`;
   return h + '</div>';
 }
 async function sendRequest() {
@@ -542,7 +553,7 @@ async function doRestore(file) {
 export function bindEvents(hooks) {
   document.addEventListener('click', e => {
     const tb = e.target.closest('[data-tab]');
-    if (tb) { U.tab = tb.dataset.tab; U.adding = null; U.sheet = null; U.ddsheet = false; U.arm = null; U.gardenPick = false; const sc = $('scr') || $('wmain'); if (sc) sc.scrollTop = 0; if (U.tab === 'set') refreshNotif(); requestRender(); return; }
+    if (tb) { U.addOpen = false; U.manageOpen = false; U.tab = tb.dataset.tab; U.adding = null; U.sheet = null; U.ddsheet = false; U.arm = null; U.gardenPick = false; const sc = $('scr') || $('wmain'); if (sc) sc.scrollTop = 0; if (U.tab === 'set') refreshNotif(); requestRender(); return; }
     const el = e.target.closest('[data-act]');
     if (!el) { if (U.arm) { U.arm = null; requestRender(); } return; }
     const a = el.dataset.act, id = el.dataset.id, v = el.dataset.v;
@@ -579,10 +590,19 @@ export function bindEvents(hooks) {
       case 'habitEdit': U.habitEdit = !U.habitEdit; break;
       case 'habitDel': if (arm('hdel:' + id)) saveProfile({ habits: P().habits.filter(h => h.id !== id) }); break;
       case 'habitAdd': addHabit(); break;
-      case 'book': { const b = P().book; if (b) { const page = Math.max(0, Math.min(b.total, b.page + +v)); saveProfile({ book: { ...b, page } }); if (page === b.total) toast('다 읽었어요!'); } break; }
-      case 'bookEdit': U.bookEdit = !U.bookEdit; clearDraft('bk-title', 'bk-page', 'bk-total'); break;
-      case 'bookSave': { const title = $('bk-title').value.trim(), total = Math.max(1, +$('bk-total').value || 0), page = Math.max(0, Math.min(total, +$('bk-page').value || 0)); if (!title || !+$('bk-total').value) { toast('제목과 전체 쪽수를 넣어 주세요'); break; } saveProfile({ book: { title, page, total } }); U.bookEdit = false; clearDraft('bk-title', 'bk-page', 'bk-total'); break; }
-      case 'bookClear': if (arm('book')) { saveProfile({ book: null }); U.bookEdit = false; } break;
+      case 'book': { const list = books(), b = list.find(x => x.id === id); if (b) { const page = Math.max(0, Math.min(b.total, b.page + +v)), fin = page === b.total; saveProfile({ books: list.map(x => x.id === id ? { ...x, page, done: fin, doneAt: fin ? Date.now() : null } : x), book: null }); if (fin) toast(`‘${b.title}’ 다 읽었어요! 다 읽은 책으로 옮겼어요`); } break; }
+      case 'bookEdit': U.bookEdit = id || null; clearDraft('bk-title', 'bk-page', 'bk-total'); break;
+      case 'bookSave': {
+        const title = $('bk-title').value.trim(), total = Math.max(1, +$('bk-total').value || 0), page = Math.max(0, Math.min(total, +$('bk-page').value || 0));
+        if (!title || !+$('bk-total').value) { toast('제목과 전체 쪽수를 넣어 주세요'); break; }
+        const list = books(), fin = page === total;
+        const nb = { title, page, total, done: fin, doneAt: fin ? Date.now() : null };
+        saveProfile({ books: id ? list.map(x => x.id === id ? { ...x, ...nb } : x) : [...list, { id: uid(), ...nb }], book: null });
+        U.bookEdit = null; clearDraft('bk-title', 'bk-page', 'bk-total'); break;
+      }
+      case 'bookDel': if (arm('bdel:' + id)) { saveProfile({ books: books().filter(x => x.id !== id), book: null }); U.bookEdit = null; } break;
+      case 'bookReopen': saveProfile({ books: books().map(x => x.id === id ? { ...x, done: false, doneAt: null, page: 0 } : x), book: null }); toast('다시 읽기 시작해요'); break;
+      case 'booksDone': U.booksDone = !U.booksDone; break;
       case 'gardenPick': U.gardenPick = !U.gardenPick; break;
       case 'garden': saveSettings({ garden: v }); U.gardenPick = false; break;
       case 'theme': saveSettings({ theme: v }); break;
@@ -615,6 +635,7 @@ export function bindEvents(hooks) {
         U.picker = null; break;
       }
       case 'addOpen': U.addOpen = !U.addOpen; break;
+      case 'manageOpen': U.manageOpen = !U.manageOpen; break;
       case 'sendReq': sendRequest(); return;
       case 'accept': S.backend.social.acceptRequest(id).then(() => toast(`${fprof(id).nickname}님과 친구가 됐어요`)).catch(e => { console.error(e); toast('수락하지 못했어요'); }); break;
       case 'decline': S.backend.social.declineRequest(id).catch(e => console.error(e)); break;
