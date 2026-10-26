@@ -95,6 +95,7 @@ jobs:
           ./gradlew assembleRelease --no-daemon --console=plain 2>&1 | tee ../build.log
           mkdir -p ../out
           cp app/build/outputs/apk/release/*.apk ../out/mongle-todo-1.0.${{ github.run_number }}.apk
+          cp app/build/outputs/apk/release/*.apk ../out/mongle-todo.apk
       - name: Report build errors
         if: failure()
         run: |
