@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, deleteDoc, collection, query, where, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, deleteDoc, getDoc, updateDoc, collection, query, where, onSnapshot, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 
 const clean = o => JSON.parse(JSON.stringify(o));
 
@@ -52,6 +52,56 @@ export function createFirebaseBackend(config) {
     saveRoutine: r => setDoc(ref('routines', r.id), clean(r)),
     deleteRoutine: id => deleteDoc(ref('routines', id)),
     saveDay: (date, p) => setDoc(ref('days', date), clean({ ...p, date }), { merge: true }),
+
+    /* ---------- friends (shared Firestore collections) ---------- */
+    social: {
+      enabled: true,
+      pairId: (a, b) => (a < b ? `${a}_${b}` : `${b}_${a}`),
+      watchMine(h) {
+        const me = uidNow, uns = [];
+        uns.push(onSnapshot(doc(db, 'publicProfiles', me), s => h.publicProfile(s.exists() ? s.data() : null), h.error));
+        uns.push(onSnapshot(query(collection(db, 'friendships'), where('users', 'array-contains', me)), s => h.friendships(s.docs.map(d => d.data().users.find(u => u !== me))), h.error));
+        uns.push(onSnapshot(query(collection(db, 'friendRequests'), where('to', '==', me)), s => h.incoming(s.docs.map(d => d.data().from)), h.error));
+        uns.push(onSnapshot(query(collection(db, 'friendRequests'), where('from', '==', me)), s => h.outgoing(s.docs.map(d => d.data().to)), h.error));
+        uns.push(onSnapshot(query(col('reactions'), where('date', '>=', h.cutoff)), s => h.reactions(s.docs.map(d => ({ id: d.id, ...d.data() }))), h.error));
+        return () => uns.forEach(u => u());
+      },
+      watchProfile(uid, cb, err) { return onSnapshot(doc(db, 'publicProfiles', uid), s => cb(s.exists() ? s.data() : null), err); },
+      watchFriendDay(uid, date, cb, err) {
+        const me = uidNow; let todos = null, rx = null;
+        const emit = () => { if (todos && rx) cb({ todos, rx }); };
+        const u1 = onSnapshot(query(collection(db, 'users', uid, 'todos'), where('date', '==', date), where('shared', '==', true)), s => { todos = s.docs.map(d => ({ id: d.id, ...d.data() })); emit(); }, err);
+        const u2 = onSnapshot(query(collection(db, 'users', uid, 'reactions'), where('from', '==', me), where('date', '==', date)), s => { rx = s.docs.map(d => d.data()); emit(); }, err);
+        return () => { u1(); u2(); };
+      },
+      savePublicProfile: p => setDoc(doc(db, 'publicProfiles', uidNow), clean(p), { merge: true }),
+      async claimCode(code) { await setDoc(doc(db, 'codes', code), { uid: uidNow }); },
+      async lookupCode(code) { const s = await getDoc(doc(db, 'codes', code)); return s.exists() ? s.data().uid : null; },
+      sendRequest: to => setDoc(doc(db, 'friendRequests', `${uidNow}_${to}`), { from: uidNow, to, createdAt: Date.now() }),
+      cancelRequest: to => deleteDoc(doc(db, 'friendRequests', `${uidNow}_${to}`)),
+      declineRequest: from => deleteDoc(doc(db, 'friendRequests', `${from}_${uidNow}`)),
+      async acceptRequest(from) {
+        const users = [uidNow, from].sort();
+        await setDoc(doc(db, 'friendships', users.join('_')), { users, createdAt: Date.now() });
+        await deleteDoc(doc(db, 'friendRequests', `${from}_${uidNow}`));
+      },
+      removeFriend(uid) { return deleteDoc(doc(db, 'friendships', [uidNow, uid].sort().join('_'))); },
+      react: (owner, todo, sticker) => setDoc(doc(db, 'users', owner, 'reactions', `${todo.id}_${uidNow}`),
+        { todoId: todo.id, from: uidNow, sticker, date: todo.date, text: String(todo.text).slice(0, 80), createdAt: Date.now(), seen: false }),
+      unreact: (owner, todoId) => deleteDoc(doc(db, 'users', owner, 'reactions', `${todoId}_${uidNow}`)),
+      async markSeen(ids) {
+        const b = writeBatch(db);
+        ids.forEach(id => b.update(doc(db, 'users', uidNow, 'reactions', id), { seen: true }));
+        await b.commit();
+      },
+      async shareBatch(todos) {
+        for (let i = 0; i < todos.length; i += 400) {
+          const b = writeBatch(db);
+          todos.slice(i, i + 400).forEach(t => b.update(doc(db, 'users', uidNow, 'todos', t.id), { shared: t.shared }));
+          await b.commit();
+        }
+      }
+    },
     async fetchAll() {
       const out = {};
       for (const n of ['todos', 'routines', 'days']) out[n] = (await getDocs(col(n))).docs.map(d => d.data());

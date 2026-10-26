@@ -15,7 +15,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Test Firestore security rules
+        run: |
+          set -o pipefail
+          npx -y firebase-tools@15.34.1 emulators:exec --only firestore --project demo-mongle "node --test --test-reporter=spec tests/rules.test.mjs" 2>&1 | tee rules.log
+      - name: Report rule test failures
+        if: failure()
+        run: |
+          grep -n -E "not ok|✖|AssertionError|Error:|expected" rules.log | head -60 > err.txt || true
+          python3 - <<'PY'
+          lines = open('err.txt').read().splitlines()
+          for i in range(0, min(len(lines), 90), 10):
+              print('::error title=rules::' + '%0A'.join(l.replace('%', '%25') for l in lines[i:i+10]))
+          PY
+
   web:
+    needs: rules
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -36,6 +64,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
   android:
+    needs: rules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

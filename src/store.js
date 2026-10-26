@@ -12,7 +12,8 @@ export const DEFAULT_PROFILE = () => ({
   ],
   habits: [{ id: 'h-water', name: '물 2L 마시기' }, { id: 'h-stretch', name: '스트레칭 10분' }, { id: 'h-read', name: '독서 30분' }],
   ddays: [],
-  book: null
+  book: null,
+  share: []
 });
 
 export const S = {
@@ -20,6 +21,7 @@ export const S = {
   profile: DEFAULT_PROFILE(), profileLoaded: false,
   todos: {}, routines: {}, days: {},
   loadedFrom: null, // earliest date (key) whose todos are loaded
+  social: { pub: undefined, friends: [], incoming: [], outgoing: [], reactions: {}, profiles: {}, day: null },
   ui: {}
 };
 
@@ -62,7 +64,8 @@ const safe = p => Promise.resolve(p).catch(e => { console.error(e); S.error = '�
 
 export function saveProfile(patch) { Object.assign(S.profile, patch); render(); safe(B().saveProfile(patch)); }
 export function saveSettings(patch) { S.profile.settings = { ...S.profile.settings, ...patch }; render(); safe(B().saveProfile({ settings: S.profile.settings })); }
-export function putTodo(t) { S.todos[t.id] = t; idx = null; render(); safe(B().saveTodo(t)); }
+export const isShared = t => !!t.date && (S.profile.share || []).includes(t.cat);
+export function putTodo(t) { t = { ...t, shared: isShared(t) }; S.todos[t.id] = t; idx = null; render(); safe(B().saveTodo(t)); }
 export function removeTodo(id) { delete S.todos[id]; idx = null; render(); safe(B().deleteTodo(id)); }
 export function putRoutine(r) { S.routines[r.id] = r; render(); safe(B().saveRoutine(r)); }
 export function putDay(date, patch) { S.days[date] = { ...(S.days[date] || { date }), ...patch, date }; render(); safe(B().saveDay(date, patch)); }
@@ -119,7 +122,7 @@ export function ensureRoutines(from, to) {
   const t0 = todayKey();
   if (from < t0) from = t0;
   if (to < from) return;
-  missingRoutineTodos(S.routines, index(), from, to).forEach(t => { S.todos[t.id] = t; safe(B().saveTodo(t)); });
+  missingRoutineTodos(S.routines, index(), from, to).forEach(t => { t.shared = isShared(t); S.todos[t.id] = t; safe(B().saveTodo(t)); });
   idx = null;
 }
 
@@ -145,3 +148,16 @@ export async function ensureLoaded(fromDate) {
 export const cutoffs = () => ({ todoCutoff: key(addDays(new Date(), -70)), dayCutoff: key(addDays(new Date(), -230)) });
 
 export const later = debounce(fn => fn(), 400);
+
+/* ---------- sharing with friends ---------- */
+export function setShare(catId, on) {
+  const share = new Set(S.profile.share || []);
+  on ? share.add(catId) : share.delete(catId);
+  saveProfile({ share: [...share] });
+  const changed = Object.values(S.todos).filter(t => t.cat === catId && t.date && t.shared !== on).map(t => ({ ...t, shared: on }));
+  changed.forEach(t => { S.todos[t.id] = t; });
+  idx = null; render();
+  if (changed.length && B().social?.enabled) safe(B().social.shareBatch(changed));
+}
+export const sharedCats = () => S.profile.cats.filter(c => (S.profile.share || []).includes(c.id)).map(c => ({ id: c.id, name: c.name, color: c.color }));
+export const unseenReactions = () => Object.values(S.social.reactions).filter(r => !r.seen && S.social.friends.includes(r.from));

@@ -1,8 +1,93 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    // Accepted friendship between a and b (document id is the two uids sorted, joined by "_").
+    function friends(a, b) {
+      return exists(/databases/$(database)/documents/friendships/$(a + '_' + b))
+          || exists(/databases/$(database)/documents/friendships/$(b + '_' + a));
+    }
+    // A pending request in either direction.
+    function requested(a, b) {
+      return exists(/databases/$(database)/documents/friendRequests/$(a + '_' + b))
+          || exists(/databases/$(database)/documents/friendRequests/$(b + '_' + a));
+    }
+
+    match /users/{uid} {
+      match /meta/{docId} {
+        allow read, write: if signedIn() && me() == uid;
+      }
+      match /routines/{id} {
+        allow read, write: if signedIn() && me() == uid;
+      }
+      match /days/{id} {
+        allow read, write: if signedIn() && me() == uid;
+      }
+      match /todos/{id} {
+        allow read, write: if signedIn() && me() == uid;
+        // Friends can only read todos the owner marked as shared.
+        allow read: if signedIn() && resource.data.shared == true && friends(uid, me());
+      }
+      match /reactions/{rid} {
+        // Owner: read, delete, and mark as seen.
+        allow read, delete: if signedIn() && me() == uid;
+        allow update: if signedIn() && me() == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen']);
+        // Friend: read and remove the reaction they left.
+        allow read, delete: if signedIn() && resource.data.from == me();
+        // Friend: leave or change one sticker per todo, only on a shared todo.
+        allow create, update: if signedIn() && me() != uid
+          && friends(uid, me())
+          && request.resource.data.keys().hasOnly(['todoId', 'from', 'sticker', 'date', 'text', 'createdAt', 'seen'])
+          && request.resource.data.from == me()
+          && rid == request.resource.data.todoId + '_' + me()
+          && request.resource.data.sticker is string && request.resource.data.sticker.size() <= 20
+          && request.resource.data.text is string && request.resource.data.text.size() <= 80
+          && request.resource.data.seen == false
+          && get(/databases/$(database)/documents/users/$(uid)/todos/$(request.resource.data.todoId)).data.shared == true;
+      }
+    }
+
+    match /publicProfiles/{uid} {
+      allow read: if signedIn() && (me() == uid || friends(uid, me()) || requested(uid, me()));
+      allow create, update: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['nickname', 'avatar', 'code', 'sharedCats'])
+        && request.resource.data.nickname is string && request.resource.data.nickname.size() <= 20;
+      allow delete: if signedIn() && me() == uid;
+    }
+
+    match /codes/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['uid']) && request.resource.data.uid == me();
+      allow delete: if signedIn() && resource.data.uid == me();
+    }
+
+    match /friendRequests/{rid} {
+      allow read: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['from', 'to', 'createdAt'])
+        && request.resource.data.from == me()
+        && request.resource.data.to is string
+        && request.resource.data.to != me()
+        && rid == me() + '_' + request.resource.data.to
+        && !friends(me(), request.resource.data.to);
+      allow delete: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+    }
+
+    match /friendships/{fid} {
+      allow read: if signedIn() && me() in resource.data.users;
+      // Only the person who received a request can turn it into a friendship.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['users', 'createdAt'])
+        && request.resource.data.users.size() == 2
+        && request.resource.data.users[0] < request.resource.data.users[1]
+        && fid == request.resource.data.users[0] + '_' + request.resource.data.users[1]
+        && ((request.resource.data.users[0] == me()
+              && exists(/databases/$(database)/documents/friendRequests/$(request.resource.data.users[1] + '_' + me())))
+          || (request.resource.data.users[1] == me()
+              && exists(/databases/$(database)/documents/friendRequests/$(request.resource.data.users[0] + '_' + me()))));
+      allow delete: if signedIn() && me() in resource.data.users;
     }
   }
 }

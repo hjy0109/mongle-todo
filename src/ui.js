@@ -1,4 +1,5 @@
-import { S, todosOn, index, render as requestRender, saveProfile, saveSettings, putDay, addTodo, toggleTodo, updateTodo, deleteTodo, moveTodo, setRepeat, toggleHabit, ensureRoutines, ensureLoaded, later, putTodo } from './store.js';
+import { S, todosOn, index, render as requestRender, saveProfile, saveSettings, putDay, addTodo, toggleTodo, updateTodo, deleteTodo, moveTodo, setRepeat, toggleHabit, ensureRoutines, ensureLoaded, later, putTodo, setShare, sharedCats, unseenReactions } from './store.js';
+import { AVATARS, STICKERS, avatarHTML, stickerHTML } from './pixels.js';
 import { key, fromKey, addDays, addKey, todayKey, WD, fmtDay, esc, uid, ddLabel, fmtT, pad, rnd } from './util.js';
 import { THEMES, GARDENS, COLORS, SHAPES, sprite, spriteInner, themeOf, gardenOf, gardenIdOf } from './themes.js';
 import { REPEATS, repName, habitsOn, isSpecial, habitStreak } from './logic.js';
@@ -7,7 +8,7 @@ import { isNative, notifPermission, requestNotifPermission, testNotification, sa
 export const VERSION = '1.0.0';
 const MOODS = ['🙂', '😊', '🥰', '😴', '🔥', '🌧️', '😵'];
 const U = S.ui;
-Object.assign(U, { tab: 'todo', view: 'week', selected: todayKey(), adding: null, sheet: null, ddsheet: false, sdOpen: false,
+Object.assign(U, { friend: null, fdate: null, picker: null, addOpen: false, editProfile: false, pfAvatar: null, tab: 'todo', view: 'week', selected: todayKey(), adding: null, sheet: null, ddsheet: false, sdOpen: false,
   editCat: null, newColor: 'c6', arm: null, habitEdit: false, bookEdit: false, gardenPick: false, hdate: null, loginErr: '', busy: false, notif: null });
 
 const I = {
@@ -19,13 +20,17 @@ const I = {
   right: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>',
   tTodo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="7"/><path d="M8 12.5l3 3 5-6"/></svg>',
   tHabit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9 5 4.5 5c0 4 3 7 7.5 7z"/><path d="M12 14c0-3.5 2.5-6 7-6 0 3.5-2.5 6-7 6z"/></svg>',
+  tFriends: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="9" r="3.5"/><circle cx="17" cy="10" r="2.5"/><path d="M3 19c.8-3.2 3.2-5 6-5s5.2 1.8 6 5M15 15.2c2.6-.4 4.6 1 5.4 3.8"/></svg>',
+  smile: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="12" r="8"/><path d="M7.8 14.5c.9 1.2 2 1.8 3.2 1.8s2.3-.6 3.2-1.8M8.5 10h.01M13.5 10h.01"/><path d="M20 2.5v4M18 4.5h4"/></svg>',
   tSet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>',
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="4"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>',
   repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V9a3 3 0 013-3h12l-3-3M20 13v2a3 3 0 01-3 3H5l3 3"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>'
 };
-const NAV = [['todo', '할 일', I.tTodo], ['habit', '습관', I.tHabit], ['alarm', '알림', I.bell], ['set', '설정', I.tSet]];
+const NAV = [['todo', '할 일', I.tTodo], ['friends', '친구', I.tFriends], ['habit', '습관', I.tHabit], ['set', '설정', I.tSet]];
+const navBadge = id => { const n = id === 'todo' ? unseenReactions().length : id === 'friends' ? S.social.incoming.length : 0; return n ? `<span class="badge">${n}</span>` : ''; };
+const fprof = uid => S.social.profiles[uid] || { nickname: '친구', avatar: 'rabbit' };
 
 const P = () => S.profile;
 const st = () => S.profile.settings;
@@ -79,13 +84,16 @@ function todoRow(t) {
   if (t.routineId && S.routines[t.routineId]) meta.push(`<span class="tagp">${I.repeat}${repName(S.routines[t.routineId].rule)}</span>`);
   if ((t.subs || []).length) meta.push(`<span class="tagp">${I.list}${sd}/${t.subs.length}</span>`);
   if (meta.length) h += `<span class="meta">${meta.join('')}</span>`;
+  const rx = Object.values(S.social.reactions).filter(r => r.todoId === t.id && S.social.friends.includes(r.from));
+  if (rx.length) h += `<span class="rx">${rx.map(r => `<span class="rxp${r.seen ? '' : ' new'}" title="${esc(fprof(r.from).nickname)}">${avatarHTML(fprof(r.from).avatar, 18)}${stickerHTML(r.sticker, 16)}</span>`).join('')}</span>`;
   h += `</div><button class="more" data-act="more" data-id="${t.id}" aria-label="할 일 메뉴">${I.dots}</button></li>`;
   if ((t.subs || []).length && !t.done) h += `<li><ul class="subs">${t.subs.map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${t.id}" data-s="${s.id}" aria-label="하위 할 일 완료">${I.checkW}</button><span>${esc(s.text)}</span></li>`).join('')}</ul></li>`;
   return h;
 }
 function catBlock(c, k) {
   const items = todosOn(k).filter(t => t.cat === c.id);
-  let h = `<button class="chip" data-act="add" data-cat="${c.id}"><span class="dot"></span>${esc(c.name)}<span class="plus">+</span></button><ul class="todos">`;
+  const pub = S.backend.social?.enabled && (P().share || []).includes(c.id);
+  let h = `<button class="chip" data-act="add" data-cat="${c.id}"><span class="dot"></span>${esc(c.name)}<span class="plus">+</span></button>${pub ? ' <span class="pubtag">친구 공개</span>' : ''}<ul class="todos">`;
   h += items.map(todoRow).join('');
   if (U.adding === c.id) h += `<li class="addrow"><span class="chk"></span><input id="addinput" placeholder="할 일 입력 후 Enter" autocomplete="off" enterkeyhint="done"></li>`;
   else if (!items.length) h += '<li class="empty-hint">+ 를 눌러 할 일을 추가해요</li>';
@@ -117,7 +125,7 @@ function renderTodo() {
     <div class="cal">${calCells(k, U.view)}</div>
     <div class="dayhd"><h2>${fmtDay(k)}</h2>${k !== todayKey() ? '<button class="pill-tag" data-act="today">오늘로</button>' : ''}${moodBtn(k)}</div>
     <input class="memo" id="memo" placeholder="한 줄 일기를 남겨보세요" value="${esc(S.days[k]?.memo || '')}" autocomplete="off">
-    <div class="cats">`;
+    ${newRxCard()}<div class="cats">`;
   for (const c of P().cats) h += `<div style="--c:var(--${c.color})">${catBlock(c, k)}</div>`;
   return h + orphanBlock(k) + '</div>' + somedayBlock();
 }
@@ -196,7 +204,7 @@ function timedRow(k, t) {
   const c = catOf(t.cat);
   return `<div class="row trow" style="--c:var(--${c.color})"><span><span class="chip sm"><span class="dot"></span>${esc(c.name)}</span><span style="overflow-wrap:anywhere">${esc(t.text)}</span></span><span class="bell">${k === todayKey() ? '오늘' : fromKey(k).getDate() + '일'} ${T(t.time)}</span></div>`;
 }
-function renderAlarm() {
+function alarmSection() {
   const a = st().alarms, TK = todayKey(), idx = index();
   const timed = [...idx.keys()].filter(k => k && k >= TK).sort().flatMap(k => idx.get(k).filter(t => t.time && !t.done).map(t => [k, t])).slice(0, 8);
   const perm = U.notif;
@@ -204,7 +212,7 @@ function renderAlarm() {
     ? `<div class="card row"><div><div class="lbl">알림 허용됨</div><div class="sub">${isNative ? '설정한 시간에 팝업으로 알려드려요' : '이 페이지가 열려 있을 때 알려드려요. 폰에서는 앱 알림을 쓰세요.'}</div></div><button class="btn ghost sm" data-act="notifTest">테스트</button></div>`
     : perm === 'unsupported' ? '<div class="card"><div class="sub">이 브라우저는 알림을 지원하지 않아요.</div></div>'
     : `<div class="card row"><div><div class="lbl">알림이 꺼져 있어요</div><div class="sub">${perm === 'denied' ? (isNative ? '휴대폰 설정 → 앱 → 몽글 투두 → 알림에서 켜 주세요' : '브라우저 주소창의 사이트 설정에서 알림을 허용해 주세요') : '허용해야 팝업 알림을 받을 수 있어요'}</div></div>${perm === 'denied' ? '' : '<button class="btn sm" data-act="notifReq">허용</button>'}</div>`;
-  return `${errBar()}<h2 class="title">알림</h2><div class="stack">${permCard}
+  return `${permCard}
     <div class="card stack"><div class="row"><div><div class="lbl">아침 브리핑</div><div class="sub">오늘 할 일 목록을 한 번에 알려줘요</div></div><button class="sw${a.morning.on ? ' on' : ''}" data-act="sw" data-k="morning" aria-label="아침 브리핑"></button></div>
       <div class="row"><span class="sub">알림 시간 · ${T(a.morning.time)}</span><input type="time" class="tinput" id="t-morning" value="${a.morning.time}"></div></div>
     <div class="card stack"><div class="row"><div><div class="lbl">저녁 체크</div><div class="sub">아직 남은 할 일을 알려줘요</div></div><button class="sw${a.evening.on ? ' on' : ''}" data-act="sw" data-k="evening" aria-label="저녁 체크"></button></div>
@@ -212,7 +220,7 @@ function renderAlarm() {
     <div class="card"><div class="row"><div><div class="lbl">소리 없이 팝업만</div><div class="sub">진동·소리 없이 배너로만 표시해요</div></div><button class="sw${a.silent ? ' on' : ''}" data-act="sw" data-k="silent" aria-label="소리 없이"></button></div></div>
     <div class="card stack"><div class="lbl">예정된 할 일 알림</div>
       ${timed.length ? timed.map(([k, t]) => timedRow(k, t)).join('') : '<div class="sub">알림을 단 할 일이 없어요</div>'}
-      <div class="hint">할 일의 ⋯ 메뉴에서 알림 시간을 달 수 있어요. 앞으로 7일 안의 알림이 예약돼요.</div></div></div>`;
+      <div class="hint">할 일의 ⋯ 메뉴에서 알림 시간을 달 수 있어요. 앞으로 7일 안의 알림이 예약돼요.</div></div>`;
 }
 
 /* ---------------- settings ---------------- */
@@ -220,13 +228,14 @@ function renderSettings() {
   const s = st(), counts = {}; Object.values(S.todos).forEach(t => { counts[t.cat] = (counts[t.cat] || 0) + 1; });
   let h = `${errBar()}<h2 class="title">설정</h2><div class="stack">
     <div class="card row"><div style="min-width:0"><div class="lbl" style="overflow-wrap:anywhere">${esc(S.user?.email || '')}</div><div class="sub">${S.backend.kind === 'local' ? '이 기기에만 저장 중 (로그인 없이 쓰는 모드)' : '로그인됨 · 폰과 PC가 같이 바뀌어요'}</div></div><button class="btn ghost sm" data-act="logout">${armed('logout') ? '정말 로그아웃' : '로그아웃'}</button></div>
+    <h3 class="sect">알림</h3>${alarmSection()}<h3 class="sect">꾸미기</h3>
     <div class="card stack"><div class="lbl">테마</div><div class="themes">`;
   h += THEMES.map(t => `<button class="themecard${s.theme === t.id ? ' on' : ''}" data-act="theme" data-v="${t.id}" style="--ta:${t.l}"><span class="tprev"><span class="shape" style="background:var(--ta)"></span><span class="shape" style="background:var(--${t.p[0]})"></span><span class="shape" style="background:var(--${t.p[1]})"></span></span>${t.name}</button>`).join('');
   h += `</div></div><div class="card stack"><div class="lbl">체크 모양</div><div class="shapes">${SHAPES.map(([id, n]) => `<button class="shapebtn${s.shape === id ? ' on' : ''}" data-act="shape" data-v="${id}"><span class="shp-${id}"></span>${n}</button>`).join('')}</div></div>
     <div class="card stack"><div class="lbl">습관 정원</div>${gardenPicker()}</div>
     <div class="card"><div class="row" style="margin-bottom:4px"><span class="lbl">카테고리</span>${U.editCat === 'new' ? '' : '<button class="btn ghost sm" data-act="newcat">+ 추가</button>'}</div><div class="sub" style="margin-bottom:4px">색 점을 누르면 색을, 이름을 누르면 이름을 바꿔요</div>`;
   for (const c of P().cats) {
-    h += `<div style="--c:var(--${c.color})"><div class="catline"><button class="dotbtn" data-act="editcat" data-id="${c.id}" aria-label="${esc(c.name)} 색 바꾸기"></button><input id="cname-${c.id}" class="cname" data-cid="${c.id}" value="${esc(c.name)}" aria-label="카테고리 이름"><span class="sub">${counts[c.id] || 0}개</span><button class="xbtn${armed('cdel:' + c.id) ? ' warn' : ''}" data-act="catdel" data-id="${c.id}" aria-label="삭제">${armed('cdel:' + c.id) ? '삭제' : '×'}</button></div>`;
+    h += `<div style="--c:var(--${c.color})"><div class="catline"><button class="dotbtn" data-act="editcat" data-id="${c.id}" aria-label="${esc(c.name)} 색 바꾸기"></button><input id="cname-${c.id}" class="cname" data-cid="${c.id}" value="${esc(c.name)}" aria-label="카테고리 이름">${S.backend.social?.enabled ? `<div class="seg mini"><button class="${(P().share || []).includes(c.id) ? '' : 'on'}" data-act="share" data-id="${c.id}" data-v="0">나만</button><button class="${(P().share || []).includes(c.id) ? 'on' : ''}" data-act="share" data-id="${c.id}" data-v="1">친구 공개</button></div>` : `<span class="sub">${counts[c.id] || 0}개</span>`}<button class="xbtn${armed('cdel:' + c.id) ? ' warn' : ''}" data-act="catdel" data-id="${c.id}" aria-label="삭제">${armed('cdel:' + c.id) ? '삭제' : '×'}</button></div>`;
     if (U.editCat === c.id) h += `<div class="palette">${COLORS.map(x => `<button class="swatch${c.color === x ? ' on' : ''}" style="--c:var(--${x})" data-act="catcolor" data-id="${c.id}" data-v="${x}" aria-label="색 ${x}"></button>`).join('')}</div>`;
     h += '</div>';
   }
@@ -234,7 +243,7 @@ function renderSettings() {
     h += `<div style="--c:var(--${U.newColor})"><div class="catline"><span class="dotbtn"></span><input id="newcat" class="field" placeholder="새 카테고리 이름" autocomplete="off" enterkeyhint="done"><button class="btn sm" data-act="addcat">추가</button></div>
       <div class="palette">${COLORS.map(x => `<button class="swatch${U.newColor === x ? ' on' : ''}" style="--c:var(--${x})" data-act="catcolor" data-id="new" data-v="${x}" aria-label="색 ${x}"></button>`).join('')}</div></div>`;
   }
-  h += `<div class="hint">카테고리를 지워도 그 안의 할 일은 ‘분류 없음’으로 남아요.</div></div>
+  h += `<div class="hint">카테고리를 지워도 그 안의 할 일은 ‘분류 없음’으로 남아요.${S.backend.social?.enabled ? ' ‘친구 공개’로 둔 카테고리의 할 일만 친구가 볼 수 있어요.' : ''}</div></div>
     <div class="card row"><div><div class="lbl">시간 표시</div><div class="sub">예: ${T('14:00')}</div></div><div class="seg"><button class="${s.h24 ? 'on' : ''}" data-act="h24" data-v="1">24시간</button><button class="${s.h24 ? '' : 'on'}" data-act="h24" data-v="0">12시간</button></div></div>
     <div class="card row"><span class="lbl">한 주의 시작</span><div class="seg"><button class="${s.weekStart === 0 ? 'on' : ''}" data-act="ws" data-v="0">일요일</button><button class="${s.weekStart === 1 ? 'on' : ''}" data-act="ws" data-v="1">월요일</button></div></div>
     <div class="card row"><div><div class="lbl">지금 읽는 책 카드</div><div class="sub">습관 탭 아래에 보여요</div></div><button class="sw${s.showBook ? ' on' : ''}" data-act="showBook" aria-label="책 카드"></button></div>
@@ -245,20 +254,120 @@ function renderSettings() {
   return h;
 }
 
+/* ---------------- friends ---------------- */
+function newRxCard() {
+  const un = unseenReactions().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  if (!un.length) return '';
+  return `<div class="newrx"><div class="row"><b>새 반응 ${un.length}개</b><button class="btn ghost sm" data-act="seenAll">확인했어요</button></div>
+    ${un.slice(0, 5).map(r => `<div class="rxline">${avatarHTML(fprof(r.from).avatar, 22)}<span><b>${esc(fprof(r.from).nickname)}</b>님이 ‘${esc(r.text || '할 일')}’에</span>${stickerHTML(r.sticker, 20)}</div>`).join('')}
+    ${un.length > 5 ? `<div class="sub">외 ${un.length - 5}개</div>` : ''}</div>`;
+}
+const canAdd = () => S.social.friends.length + S.social.outgoing.length < 3;
+function profileForm() {
+  const pub = S.social.pub, cur = U.pfAvatar || pub?.avatar || 'rabbit';
+  return `<div class="card stack"><div class="lbl b">${pub ? '프로필 편집' : '친구들에게 보일 프로필을 만들어요'}</div>
+    <div style="display:flex;gap:12px;align-items:center">${avatarHTML(cur, 56)}<input class="field" id="pf-name" maxlength="10" placeholder="닉네임 (10자까지)" value="${esc(pub?.nickname || '')}" autocomplete="off"></div>
+    <div class="avpick">${Object.keys(AVATARS).map(k => `<button class="avbtn${cur === k ? ' on' : ''}" data-act="pfAvatar" data-k="${k}">${avatarHTML(k, 44)}${AVATARS[k].name}</button>`).join('')}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">${pub ? '<button class="btn ghost sm" data-act="editProfile">취소</button>' : ''}<button class="btn sm" data-act="pfSave"${U.busy ? ' disabled' : ''}>${pub ? '저장' : '시작하기'}</button></div>
+    ${pub ? '' : '<div class="hint">프로필을 만들면 친구 코드가 생겨요. 할 일은 설정에서 ‘친구 공개’로 둔 카테고리만 보여요.</div>'}</div>`;
+}
+function friendDay(f) {
+  const TK = todayKey(), date = U.fdate || TK, p = fprof(f), day = S.social.day;
+  const ready = day && day.key === `${f}|${date}`;
+  const todos = ready ? [...day.todos].sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
+  const mine = ready ? Object.fromEntries(day.rx.map(r => [r.todoId, r.sticker])) : {};
+  const done = todos.filter(t => t.done).length;
+  let h = `<div class="card stack"><div class="row"><div style="display:flex;gap:10px;align-items:center;min-width:0">${avatarHTML(p.avatar, 36)}<div style="min-width:0"><b>${esc(p.nickname)}</b>의 하루<div class="sub">${fmtDay(date)}</div></div></div>
+    <div style="display:flex;align-items:center"><button class="navbtn" data-act="fnav" data-d="-1" aria-label="전날">${I.left}</button>${date !== TK ? '<button class="pill-tag" data-act="ftoday">오늘</button>' : ''}<button class="navbtn" data-act="fnav" data-d="1" aria-label="다음날">${I.right}</button></div></div>`;
+  if (!ready) return h + '<div class="sub">불러오는 중…</div></div>';
+  if (day.error) return h + `<div class="sub">${esc(day.error)}</div></div>`;
+  h += `<div class="prog"><div class="bar"><i style="width:${todos.length ? done / todos.length * 100 : 0}%"></i></div><span class="sub">${done}/${todos.length}</span></div>`;
+  if (!todos.length) h += '<div class="sub">이 날 공개한 할 일이 없어요</div>';
+  const cats = p.sharedCats || [], known = new Set(cats.map(c => c.id));
+  const groups = cats.map(c => [c, todos.filter(t => t.cat === c.id)]).filter(g => g[1].length);
+  const rest = todos.filter(t => !known.has(t.cat));
+  if (rest.length) groups.push([{ id: '', name: '기타', color: 'c10' }, rest]);
+  for (const [c, items] of groups) {
+    h += `<div style="--c:var(--${c.color})"><span class="chip"><span class="dot"></span>${esc(c.name)}</span><ul class="todos">`;
+    for (const t of items) {
+      h += `<li class="todo${t.done ? ' done' : ''}"><span class="chk"${t.done ? '' : ''}>${I.checkW}</span><div class="txw"><span class="tx">${esc(t.text)}</span>${mine[t.id] ? `<span class="rx"><span class="rxp mine">${avatarHTML(S.social.pub.avatar, 18)}${stickerHTML(mine[t.id], 16)}</span></span>` : ''}</div><button class="more" data-act="pick" data-id="${t.id}" aria-label="반응 남기기">${I.smile}</button></li>`;
+      if (U.picker === t.id) h += `<li><div class="stpicker">${Object.keys(STICKERS).map(k => `<button class="${mine[t.id] === k ? 'on' : ''}" data-act="react" data-id="${t.id}" data-k="${k}" aria-label="${STICKERS[k].name}">${stickerHTML(k, 26)}<span>${STICKERS[k].name}</span></button>`).join('')}</div></li>`;
+    }
+    h += '</ul></div>';
+  }
+  return h + `<div class="hint">🔒 ${esc(p.nickname)}님이 ‘나만’으로 둔 카테고리는 보이지 않아요</div></div>`;
+}
+function renderFriends() {
+  const so = S.social, B = S.backend.social;
+  let h = `${errBar()}<div class="row" style="margin-bottom:14px"><h2 class="title" style="margin:0">친구</h2>${so.pub && !U.editProfile && canAdd() ? `<button class="btn ghost sm" data-act="addOpen">${U.addOpen ? '닫기' : '+ 친구 추가'}</button>` : ''}</div>`;
+  if (!B?.enabled) return h + '<div class="card"><div class="sub">친구 기능은 로그인해서 쓸 때만 쓸 수 있어요.</div></div>';
+  if (so.error) return h + `<div class="card"><div class="sub">${esc(so.error)}</div></div>`;
+  if (so.pub === undefined) return h + '<div class="card"><div class="sub">불러오는 중…</div></div>';
+  if (!so.pub || U.editProfile) return h + profileForm();
+  h += `<div class="stack"><div class="card me">${avatarHTML(so.pub.avatar, 52)}<div style="flex:1;min-width:0"><div class="nm">${esc(so.pub.nickname)}</div><div class="sub">내 친구 코드 <span class="code">${esc(so.pub.code)}</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><button class="btn ghost sm" data-act="copyCode">코드 복사</button><button class="btn ghost sm" data-act="editProfile">편집</button></div></div>`;
+  if (U.addOpen) h += `<div class="card stack"><div class="lbl b">친구 추가</div><div class="inline-add"><input id="codeinput" placeholder="친구 코드 (예: MONG-7K2Q)" autocomplete="off" autocapitalize="characters" enterkeyhint="send"><button class="btn sm" data-act="sendReq"${U.busy ? ' disabled' : ''}>요청</button></div><div class="hint">친구는 최대 3명까지예요. 친구가 요청을 수락하면 서로의 ‘친구 공개’ 할 일이 보여요.</div></div>`;
+  if (so.incoming.length) h += `<div class="card stack"><div class="lbl b">받은 친구 요청</div>${so.incoming.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 32)}${esc(fprof(u).nickname)}</span><span style="display:flex;gap:6px"><button class="btn ghost sm" data-act="decline" data-id="${u}">거절</button><button class="btn sm" data-act="accept" data-id="${u}"${so.friends.length >= 3 ? ' disabled' : ''}>수락</button></span></div>`).join('')}</div>`;
+  if (so.friends.length) {
+    const f = so.friends.includes(U.friend) ? U.friend : so.friends[0];
+    h += `<div class="friends">${so.friends.map(u => `<button class="fr${u === f ? ' on' : ''}" data-act="friend" data-id="${u}">${avatarHTML(fprof(u).avatar, 52)}<span>${esc(fprof(u).nickname)}</span></button>`).join('')}</div>`;
+    h += friendDay(f);
+  } else if (!so.incoming.length) h += `<div class="card"><div class="sub">아직 친구가 없어요. 내 친구 코드를 알려주거나, 친구의 코드로 요청해 보세요.</div></div>`;
+  if (so.outgoing.length) h += `<div class="card stack"><div class="lbl b">보낸 요청</div>${so.outgoing.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)} <span class="sub">수락 기다리는 중</span></span><button class="btn ghost sm" data-act="cancelReq" data-id="${u}">취소</button></div>`).join('')}</div>`;
+  if (so.friends.length) h += `<div class="card stack"><div class="lbl b">친구 관리</div>${so.friends.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)}</span><button class="xbtn${armed('unf:' + u) ? ' warn' : ''}" data-act="unfriend" data-id="${u}" style="font-size:12px">${armed('unf:' + u) ? '정말 끊기' : '친구 끊기'}</button></div>`).join('')}</div>`;
+  return h + '</div>';
+}
+async function sendRequest() {
+  const so = S.social, B = S.backend.social;
+  let code = ($('codeinput')?.value || '').trim().toUpperCase().replace(/\s/g, '');
+  if (!code) { toast('친구 코드를 입력해 주세요'); return; }
+  if (!code.startsWith('MONG-')) code = 'MONG-' + code.replace(/^MONG/, '');
+  if (code === so.pub.code) { toast('내 코드예요'); return; }
+  U.busy = true; requestRender();
+  try {
+    const to = await B.lookupCode(code);
+    if (!to) toast('그 코드를 가진 친구가 없어요');
+    else if (so.friends.includes(to)) toast('이미 친구예요');
+    else if (so.incoming.includes(to)) toast('그 친구가 먼저 요청을 보냈어요. 받은 요청에서 수락해 주세요');
+    else if (!canAdd()) toast('친구는 최대 3명까지예요');
+    else { await B.sendRequest(to); clearDraft('codeinput'); U.addOpen = false; toast('친구 요청을 보냈어요'); }
+  } catch (e) { console.error(e); toast('요청을 보내지 못했어요'); }
+  U.busy = false; requestRender();
+}
+async function saveFriendProfile() {
+  const B = S.backend.social, name = ($('pf-name')?.value || '').trim().slice(0, 10);
+  if (!name) { toast('닉네임을 입력해 주세요'); return; }
+  const avatar = U.pfAvatar || S.social.pub?.avatar || 'rabbit';
+  U.busy = true; requestRender();
+  try {
+    let code = S.social.pub?.code;
+    for (let i = 0; !code && i < 5; i++) {
+      const c = 'MONG-' + Array.from(crypto.getRandomValues(new Uint8Array(4)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
+      try { await B.claimCode(c); code = c; } catch { /* taken, try another */ }
+    }
+    if (!code) throw new Error('code');
+    await B.savePublicProfile({ nickname: name, avatar, code, sharedCats: sharedCats() });
+    S.social.pub = { ...(S.social.pub || {}), nickname: name, avatar, code, sharedCats: sharedCats() };
+    U.editProfile = false; U.pfAvatar = null; clearDraft('pf-name');
+    toast('프로필을 저장했어요');
+  } catch (e) { console.error(e); toast('프로필을 저장하지 못했어요'); }
+  U.busy = false; requestRender();
+}
+
 /* ---------------- web layout parts ---------------- */
 function webSide() {
   const k = U.selected, TK = todayKey();
   return `<div class="brand"><span class="logo"></span>몽글 투두</div>
-    <nav class="snav">${NAV.map(([id, l, ic]) => `<button class="${U.tab === id ? 'on' : ''}" data-tab="${id}">${ic}${l}</button>`).join('')}</nav>
+    <nav class="snav">${NAV.map(([id, l, ic]) => `<button class="${U.tab === id ? 'on' : ''}" data-tab="${id}">${ic}${l}${navBadge(id)}</button>`).join('')}</nav>
     <div class="minical"><div class="hd">${monthNav('month')}</div><div class="cal">${calCells(k, 'month')}</div></div>
     <div><div class="slabel">오늘 남은 할 일</div>${P().cats.map(c => `<div class="scat" style="--c:var(--${c.color})"><span class="dot"></span>${esc(c.name)}<span class="cnt">${todosOn(TK).filter(t => t.cat === c.id && !t.done).length}</span></div>`).join('')}</div>`;
 }
 function webMain() {
   const k = U.selected;
-  if (U.tab !== 'todo') return `<div class="inner">${U.tab === 'habit' ? renderHabit(true) : U.tab === 'alarm' ? renderAlarm() : renderSettings()}</div>`;
+  if (U.tab !== 'todo') return `<div class="inner">${U.tab === 'habit' ? renderHabit(true) : U.tab === 'friends' ? renderFriends() : renderSettings()}</div>`;
   return `${errBar()}${ddayStrip()}<div class="whd"><h2>${fmtDay(k)}</h2>${k !== todayKey() ? '<button class="btn ghost sm" data-act="today">오늘로</button>' : ''}
     <div class="month" style="font-size:15px"><button class="navbtn" data-act="nav" data-view="week" data-d="-1" aria-label="지난주">${I.left}</button><button class="navbtn" data-act="nav" data-view="week" data-d="1" aria-label="다음 주">${I.right}</button></div></div>
-    <div class="cal big">${calCells(k, 'week')}</div>
+    <div class="cal big">${calCells(k, 'week')}</div>${newRxCard()}
     <div class="wcats">${P().cats.map(c => `<div class="wcat" style="--c:var(--${c.color})">${catBlock(c, k)}</div>`).join('')}${orphanBlock(k) ? `<div class="wcat">${orphanBlock(k)}</div>` : ''}</div>${somedayBlock()}`;
 }
 function webRight() {
@@ -321,7 +430,7 @@ function loginHTML() {
 
 /* ---------------- render ---------------- */
 const drafts = {};
-const NO_DRAFT = new Set(['memo', 'sheetdate', 'sheettime', 't-morning', 't-evening', 'dddate', 'lg-email', 'lg-pw']);
+const NO_DRAFT = new Set(['memo', 'pf-name-x', 'sheetdate', 'sheettime', 't-morning', 't-evening', 'dddate', 'lg-email', 'lg-pw']);
 const clearDraft = (...ids) => ids.forEach(i => delete drafts[i]);
 let layout = null;
 const root = () => document.getElementById('app');
@@ -338,8 +447,8 @@ export function renderAll() {
   if (want === 'login') { const f = root().querySelector('.err'); if (f) f.textContent = U.loginErr; const b = root().querySelector('button[type=submit]'); if (b) { b.disabled = U.busy; b.textContent = U.busy ? '로그인 중…' : '로그인'; } return; }
   if (want === 'splash') return;
   if (want === 'phone') {
-    $('scr').innerHTML = U.tab === 'todo' ? renderTodo() : U.tab === 'habit' ? renderHabit(false) : U.tab === 'alarm' ? renderAlarm() : renderSettings();
-    $('tabs').innerHTML = NAV.map(([id, l, ic]) => `<button class="tab${U.tab === id ? ' on' : ''}" data-tab="${id}">${ic}${l}</button>`).join('');
+    $('scr').innerHTML = U.tab === 'todo' ? renderTodo() : U.tab === 'habit' ? renderHabit(false) : U.tab === 'friends' ? renderFriends() : renderSettings();
+    $('tabs').innerHTML = NAV.map(([id, l, ic]) => `<button class="tab${U.tab === id ? ' on' : ''}" data-tab="${id}">${ic}${l}${navBadge(id)}</button>`).join('');
   } else {
     $('web').className = 'web' + (U.tab === 'todo' ? '' : ' notodo');
     $('wside').innerHTML = webSide();
@@ -428,7 +537,7 @@ async function doRestore(file) {
 export function bindEvents(hooks) {
   document.addEventListener('click', e => {
     const tb = e.target.closest('[data-tab]');
-    if (tb) { U.tab = tb.dataset.tab; U.adding = null; U.sheet = null; U.ddsheet = false; U.arm = null; U.gardenPick = false; const sc = $('scr') || $('wmain'); if (sc) sc.scrollTop = 0; if (U.tab === 'alarm') refreshNotif(); requestRender(); return; }
+    if (tb) { U.tab = tb.dataset.tab; U.adding = null; U.sheet = null; U.ddsheet = false; U.arm = null; U.gardenPick = false; const sc = $('scr') || $('wmain'); if (sc) sc.scrollTop = 0; if (U.tab === 'set') refreshNotif(); requestRender(); return; }
     const el = e.target.closest('[data-act]');
     if (!el) { if (U.arm) { U.arm = null; requestRender(); } return; }
     const a = el.dataset.act, id = el.dataset.id, v = el.dataset.v;
@@ -488,6 +597,29 @@ export function bindEvents(hooks) {
       case 'restore': $('restorefile').click(); return;
       case 'logout': if (arm('logout')) { S.backend.logout(); } break;
       case 'resetpw': { const em = $('lg-email').value.trim(); if (!em) { U.loginErr = '이메일을 먼저 입력해 주세요'; } else { S.backend.resetPassword(em).then(() => { U.loginErr = '비밀번호 재설정 메일을 보냈어요'; requestRender(); }).catch(() => { U.loginErr = '메일을 보내지 못했어요'; requestRender(); }); } break; }
+      case 'seenAll': { const un = unseenReactions(); un.forEach(r => { r.seen = true; }); S.backend.social?.markSeen(un.map(r => r.id)).catch(e => console.error(e)); break; }
+      case 'friend': U.friend = id; U.picker = null; break;
+      case 'fnav': U.fdate = addKey(U.fdate || todayKey(), +el.dataset.d); U.picker = null; break;
+      case 'ftoday': U.fdate = null; U.picker = null; break;
+      case 'pick': U.picker = U.picker === id ? null : id; break;
+      case 'react': {
+        const day = S.social.day, f = day?.key.split('|')[0], t = day?.todos.find(x => x.id === id); if (!t) break;
+        const cur = day.rx.find(r => r.todoId === id);
+        if (cur && cur.sticker === el.dataset.k) { day.rx = day.rx.filter(r => r !== cur); S.backend.social.unreact(f, id).catch(e => { console.error(e); toast('반응을 지우지 못했어요'); }); }
+        else { day.rx = [...day.rx.filter(r => r.todoId !== id), { todoId: id, sticker: el.dataset.k }]; S.backend.social.react(f, t, el.dataset.k).then(() => toast(`${fprof(f).nickname}님에게 ‘${STICKERS[el.dataset.k].name}’ 반응을 남겼어요`)).catch(e => { console.error(e); toast('반응을 남기지 못했어요'); }); }
+        U.picker = null; break;
+      }
+      case 'addOpen': U.addOpen = !U.addOpen; break;
+      case 'sendReq': sendRequest(); return;
+      case 'accept': S.backend.social.acceptRequest(id).then(() => toast(`${fprof(id).nickname}님과 친구가 됐어요`)).catch(e => { console.error(e); toast('수락하지 못했어요'); }); break;
+      case 'decline': S.backend.social.declineRequest(id).catch(e => console.error(e)); break;
+      case 'cancelReq': S.backend.social.cancelRequest(id).catch(e => console.error(e)); break;
+      case 'unfriend': if (arm('unf:' + id)) { S.backend.social.removeFriend(id).then(() => toast('친구를 끊었어요')).catch(e => { console.error(e); toast('친구를 끊지 못했어요'); }); } break;
+      case 'copyCode': { const c = S.social.pub?.code || ''; (navigator.clipboard?.writeText(c) || Promise.reject()).then(() => toast('친구 코드를 복사했어요')).catch(() => toast(`내 코드: ${c}`)); return; }
+      case 'editProfile': U.editProfile = !U.editProfile; U.pfAvatar = null; break;
+      case 'pfAvatar': U.pfAvatar = el.dataset.k; break;
+      case 'pfSave': saveFriendProfile(); return;
+      case 'share': setShare(id, v === '1'); toast(v === '1' ? '친구에게 이 카테고리를 보여줘요' : '이 카테고리는 나만 봐요'); break;
       case 'clearerr': S.error = ''; break;
     }
     requestRender();
@@ -516,6 +648,7 @@ export function bindEvents(hooks) {
     else if (id === 'newcat' && e.key === 'Enter') { addCat(); requestRender(); }
     else if (id === 'habitinput' && e.key === 'Enter') addHabit();
     else if (id === 'ddname' && e.key === 'Enter') { addDday(); requestRender(); }
+    else if (id === 'codeinput' && e.key === 'Enter') sendRequest();
     else if (e.key === 'Enter' && (id === 'sheettext' || e.target.classList.contains('cname') || e.target.classList.contains('hname'))) e.target.blur();
     else if (e.key === 'Escape' && (U.sheet || U.ddsheet)) { U.sheet = null; U.ddsheet = false; requestRender(); }
   });

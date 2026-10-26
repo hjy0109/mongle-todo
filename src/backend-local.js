@@ -29,6 +29,7 @@ export function createLocalBackend() {
       return () => { h = null; };
     },
     async loadRange() { return []; },
+    social: { enabled: false },
     async saveProfile(p) { db().profile = JSON.parse(JSON.stringify({ ...(db().profile || {}), ...p })); save(); },
     async saveTodo(t) { db().todos[t.id] = t; save(); },
     async deleteTodo(id) { delete db().todos[id]; save(); },
