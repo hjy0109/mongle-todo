@@ -385,9 +385,13 @@ function webRight() {
 }
 
 /* ---------------- sheets ---------------- */
+let lastSheetKey = '';
+const setHTML = (el, html) => { if (el && el._h !== html) { el.innerHTML = html; el._h = html; } };
 function sheetHTML() {
   const wide = layout === 'web';
-  const wrap = (label, inner) => `<div class="scrim${wide ? ' center' : ''}" data-act="close"><div class="sheet" role="dialog" aria-label="${label}"><div class="grab"></div>${inner}</div></div>`;
+  const sk = U.ddsheet ? 'dd' : (U.sheet || ''), anim = sk !== lastSheetKey ? ' anim' : '';
+  lastSheetKey = sk;
+  const wrap = (label, inner) => `<div class="scrim${wide ? ' center' : ''}" data-act="close"><div class="sheet${anim}" role="dialog" aria-label="${label}"><div class="grab"></div>${inner}</div></div>`;
   if (U.ddsheet) {
     const ds = [...P().ddays].sort((a, b) => a.date.localeCompare(b.date));
     return wrap('D-day 관리', `<h3 class="title" style="margin:0">D-day</h3>
@@ -448,16 +452,16 @@ export function renderAll() {
   if (want === 'login') { const f = root().querySelector('.err'); if (f) f.textContent = U.loginErr; const b = root().querySelector('button[type=submit]'); if (b) { b.disabled = U.busy; b.textContent = U.busy ? '로그인 중…' : '로그인'; } return; }
   if (want === 'splash') return;
   if (want === 'phone') {
-    $('scr').innerHTML = U.tab === 'todo' ? renderTodo() : U.tab === 'habit' ? renderHabit(false) : U.tab === 'friends' ? renderFriends() : renderSettings();
-    $('tabs').innerHTML = NAV.map(([id, l, ic]) => `<button class="tab${U.tab === id ? ' on' : ''}" data-tab="${id}">${ic}${l}${navBadge(id)}</button>`).join('');
+    setHTML($('scr'), U.tab === 'todo' ? renderTodo() : U.tab === 'habit' ? renderHabit(false) : U.tab === 'friends' ? renderFriends() : renderSettings());
+    setHTML($('tabs'), NAV.map(([id, l, ic]) => `<button class="tab${U.tab === id ? ' on' : ''}" data-tab="${id}">${ic}${l}${navBadge(id)}</button>`).join(''));
   } else {
     $('web').className = 'web' + (U.tab === 'todo' ? '' : ' notodo');
-    $('wside').innerHTML = webSide();
-    $('wmain').innerHTML = webMain();
+    setHTML($('wside'), webSide());
+    setHTML($('wmain'), webMain());
     $('wright').hidden = U.tab !== 'todo';
-    if (U.tab === 'todo') $('wright').innerHTML = webRight();
+    if (U.tab === 'todo') setHTML($('wright'), webRight());
   }
-  $('ov').innerHTML = sheetHTML();
+  const sh = sheetHTML(); if (!sh) lastSheetKey = ''; setHTML($('ov'), sh);
   if (focusId) {
     const el = $(focusId);
     if (el && el !== document.activeElement) {
@@ -467,7 +471,7 @@ export function renderAll() {
     }
   }
   for (const id of Object.keys(drafts)) { const el = $(id); if (!el) delete drafts[id]; else if (el.value !== drafts[id]) el.value = drafts[id]; }
-  const ai = $('addinput'); if (ai && document.activeElement !== ai) ai.focus({ preventScroll: true });
+  if (U.focusAdd) { const ai = $('addinput'); if (ai) { ai.focus({ preventScroll: true }); U.focusAdd = false; } }
 }
 const $ = id => document.getElementById(id);
 
@@ -556,7 +560,7 @@ export function bindEvents(hooks) {
       case 'subdel': { const t = sheetT(); if (t) putTodo({ ...t, subs: t.subs.filter(s => s.id !== el.dataset.s) }); break; }
       case 'more': U.sheet = id; U.ddsheet = false; break;
       case 'close': case 'done': U.sheet = null; U.ddsheet = false; break;
-      case 'add': U.adding = U.adding === el.dataset.cat ? null : el.dataset.cat; break;
+      case 'add': U.adding = U.adding === el.dataset.cat ? null : el.dataset.cat; U.focusAdd = !!U.adding; break;
       case 'mood': { const k = U.selected, m = S.days[k]?.mood, i = MOODS.indexOf(m); putDay(k, { mood: i === MOODS.length - 1 ? '' : MOODS[i + 1] }); break; }
       case 'sheetcat': { const t = sheetT(); if (t) updateTodo(t.id, { cat: v }, { future: true }); break; }
       case 'moveto': { const t = sheetT(); if (t) { const nk = addKey(todayKey(), +v); U.sheet = moveTodo(t.id, nk) || t.id; toast(`${fmtDay(nk)}로 옮겼어요`); } break; }
@@ -643,7 +647,7 @@ export function bindEvents(hooks) {
     if (e.key !== 'Enter' && e.key !== 'Escape') return;
     if (e.isComposing || e.keyCode === 229) return;
     const id = e.target.id, v = (e.target.value || '').trim();
-    if (id === 'addinput') { e.preventDefault(); if (e.key === 'Enter' && v) { addTodo(U.selected, U.adding, v); e.target.value = ''; clearDraft(id); } else if (e.key === 'Escape' || !v) U.adding = null; requestRender(); }
+    if (id === 'addinput') { e.preventDefault(); if (e.key === 'Enter' && v) { addTodo(U.selected, U.adding, v); e.target.value = ''; clearDraft(id); U.focusAdd = true; } else if (e.key === 'Escape' || !v) U.adding = null; requestRender(); }
     else if (id === 'subinput' && e.key === 'Enter' && v) { const t = S.todos[U.sheet]; if (t) putTodo({ ...t, subs: [...(t.subs || []), { id: uid(), text: v, done: false }] }); e.target.value = ''; clearDraft(id); }
     else if (id === 'somedayinput' && e.key === 'Enter' && v) { addTodo('', P().cats[0]?.id || '', v); e.target.value = ''; clearDraft(id); }
     else if (id === 'newcat' && e.key === 'Enter') { addCat(); requestRender(); }
@@ -685,7 +689,8 @@ export function bindEvents(hooks) {
     requestRender();
   });
 
-  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(requestRender, 120); });
+  // Only re-render when the layout (phone vs wide) actually changes; the soft keyboard also fires resize.
+  let rt, wideNow = innerWidth >= 960; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if ((innerWidth >= 960) !== wideNow) { wideNow = innerWidth >= 960; requestRender(); } }, 150); });
 }
 
 export function handleBack() {
