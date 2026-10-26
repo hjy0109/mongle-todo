@@ -1,0 +1,10 @@
+{
+  "appId": "kr.mongle.todo",
+  "appName": "몽글 투두",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "css" },
+    "LocalNotifications": { "smallIcon": "ic_stat_mongle", "iconColor": "#8B6FE8" }
+  }
+}

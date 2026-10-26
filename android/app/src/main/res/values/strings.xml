@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">몽글 투두</string>
+    <string name="title_activity_main">몽글 투두</string>
+    <string name="package_name">kr.mongle.todo</string>
+    <string name="custom_url_scheme">kr.mongle.todo</string>
+    <string name="widget_desc">오늘 할 일과 습관을 보여줘요</string>
+</resources>
