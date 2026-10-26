@@ -326,3 +326,22 @@ input{min-width:0}
 .avpick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .avbtn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:16px;border:2px solid var(--line);font-size:12px}
 .avbtn.on{border-color:var(--accent);background:var(--accent-soft)}
+
+/* ---------- narrow screens & large text ---------- */
+.card{min-width:0}
+.field,.bookform input{width:100%;min-width:0;max-width:100%}
+.bookform{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.bookrow{align-items:flex-start}
+.bk-btns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.bk-btns .btn{padding:7px 4px;min-width:0}
+.cover{width:52px;height:72px;-webkit-line-clamp:4;display:-webkit-box;-webkit-box-orient:vertical}
+.inline-add{flex-wrap:wrap}
+.inline-add input{min-width:140px}
+.stat .k{overflow-wrap:anywhere}
+@media (max-width:360px){
+  .screen{padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
+  .card{padding:12px 13px}
+  .themes{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .avpick{grid-template-columns:repeat(2,1fr)}
+  .stpicker{margin-left:0}
+}

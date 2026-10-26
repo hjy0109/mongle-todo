@@ -156,7 +156,7 @@ function gardenPicker() {
   return `<div class="gardens"><button class="gardenbtn${cur === 'auto' ? ' on' : ''}" data-act="garden" data-v="auto">${sprite(GARDENS[tg].sp[0], `background:${GARDENS[tg].spBg}`)}테마 따라가기</button>${Object.entries(GARDENS).map(([id, g]) => `<button class="gardenbtn${cur === id ? ' on' : ''}" data-act="garden" data-v="${id}">${sprite(g.sp[0], `background:${g.spBg}`)}${g.name}</button>`).join('')}</div>`;
 }
 function renderHabit(wide) {
-  const w = gardenOf(st()), weeks = wide ? 30 : 17, TK = todayKey(), hk = U.hdate || TK, total = P().habits.length;
+  const w = gardenOf(st()), weeks = wide ? 30 : Math.max(8, Math.min(26, Math.floor((Math.min(innerWidth, 620) - 2 * 18 - 2 * 16 - 26) / 18))), TK = todayKey(), hk = U.hdate || TK, total = P().habits.length;
   const today = new Date(), off = (today.getDay() - st().weekStart + 7) % 7, start = addDays(today, -off - 7 * (weeks - 1));
   let found = 0; for (let d = new Date(start); key(d) <= TK; d = addDays(d, 1)) if (isSpecial(S, key(d))) found++;
   let full = 0; for (let i = 1; i <= today.getDate(); i++) { if (total && habitsOn(S, key(new Date(today.getFullYear(), today.getMonth(), i))).length === total) full++; }
@@ -195,7 +195,7 @@ function bookCard() {
     const pct = Math.round(b.page / b.total * 100);
     h += `<div class="bookrow"><div class="cover">${esc(b.title)}</div><div class="binfo"><b style="overflow-wrap:anywhere">${esc(b.title)}</b>
       <div class="row"><span class="sub">p.${b.page} / ${b.total}</span><b>${pct}%</b></div><div class="bar"><i style="width:${Math.min(100, pct)}%"></i></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" data-act="book" data-v="10">+10쪽</button><button class="btn ghost sm" data-act="book" data-v="30">+30쪽</button><button class="btn ghost sm" data-act="book" data-v="-10">-10쪽</button></div></div></div>`;
+      <div class="bk-btns"><button class="btn ghost sm" data-act="book" data-v="10">+10쪽</button><button class="btn ghost sm" data-act="book" data-v="30">+30쪽</button><button class="btn ghost sm" data-act="book" data-v="-10">-10쪽</button></div></div></div>`;
   }
   return h + '</div>';
 }
