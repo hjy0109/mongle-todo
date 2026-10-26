@@ -185,7 +185,13 @@ function renderHabit(wide) {
   return h + '</div>';
 }
 const memoBtn = b => `<button class="memobtn${U.bookMemo === b.id ? ' on' : ''}${b.memo ? ' has' : ''}" data-act="bookMemo" data-id="${esc(b.id)}" aria-expanded="${U.bookMemo === b.id}" aria-label="책 메모">${I.note}</button>`;
-const memoBox = b => U.bookMemo === b.id ? `<div class="memobox"><textarea id="bk-memo-${esc(b.id)}" data-bid="${esc(b.id)}" class="bkmemo" rows="5" placeholder="인상 깊은 문장, 생각, 줄거리 메모를 자유롭게 적어요">${esc(b.memo || '')}</textarea><div class="hint">다른 곳을 누르면 자동으로 저장돼요</div></div>` : '';
+const memoBox = b => {
+  if (U.bookMemo !== b.id) return '';
+  const memo = b.memo || '', editing = U.memoEdit === b.id || !memo;
+  if (editing) return `<div class="memobox"><textarea id="bk-memo-${esc(b.id)}" data-bid="${esc(b.id)}" class="bkmemo" rows="6" placeholder="인상 깊은 문장, 생각, 줄거리 메모를 자유롭게 적어요">${esc(memo)}</textarea><div class="row"><span class="hint">다른 곳을 누르면 자동으로 저장돼요</span><button class="btn sm" data-act="memoDone" data-id="${esc(b.id)}">완료</button></div></div>`;
+  const long = memo.length > 140 || memo.split('\n').length > 4, full = U.memoFull === b.id;
+  return `<div class="memobox"><div class="memotext"><div class="mt-in${long && !full ? ' clamp' : ''}">${esc(memo)}</div></div><div class="memoacts">${long ? `<button class="btn ghost sm" data-act="memoFull" data-id="${esc(b.id)}">${full ? '접기' : '펼치기'}</button>` : ''}<button class="btn ghost sm" data-act="memoEdit" data-id="${esc(b.id)}">편집</button></div></div>`;
+};
 const books = () => P().books || (P().book ? [{ id: 'b0', ...P().book }] : []);
 function bookForm(b) {
   return `<div class="card stack" style="background:var(--surface)"><div class="bookform"><label class="full">책 제목<input class="field" id="bk-title" value="${esc(b?.title || '')}" autocomplete="off"></label>
@@ -485,6 +491,7 @@ export function renderAll() {
     }
   }
   for (const id of Object.keys(drafts)) { const el = $(id); if (!el) delete drafts[id]; else if (el.value !== drafts[id]) el.value = drafts[id]; }
+  if (U.focusMemo) { const m = document.querySelector('.bkmemo'); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusMemo = null; }
   if (U.focusAdd) { const ai = $('addinput'); if (ai) { ai.focus({ preventScroll: true }); U.focusAdd = false; } }
 }
 const $ = id => document.getElementById(id);
@@ -606,7 +613,10 @@ export function bindEvents(hooks) {
       case 'bookDel': if (arm('bdel:' + id)) { saveProfile({ books: books().filter(x => x.id !== id), book: null }); U.bookEdit = null; } break;
       case 'bookReopen': saveProfile({ books: books().map(x => x.id === id ? { ...x, done: false, doneAt: null, page: 0 } : x), book: null }); toast('다시 읽기 시작해요'); break;
       case 'booksDone': U.booksDone = !U.booksDone; break;
-      case 'bookMemo': U.bookMemo = U.bookMemo === id ? null : id; break;
+      case 'bookMemo': U.bookMemo = U.bookMemo === id ? null : id; U.memoEdit = null; U.memoFull = null; break;
+      case 'memoEdit': U.memoEdit = id; U.focusMemo = id; break;
+      case 'memoDone': U.memoEdit = null; break;
+      case 'memoFull': U.memoFull = U.memoFull === id ? null : id; break;
       case 'gardenPick': U.gardenPick = !U.gardenPick; break;
       case 'garden': saveSettings({ garden: v }); U.gardenPick = false; break;
       case 'theme': saveSettings({ theme: v }); break;

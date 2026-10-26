@@ -362,3 +362,7 @@ html,body,#app{overflow-x:hidden;max-width:100%}
 .memobox{display:flex;flex-direction:column;gap:4px}
 .bkmemo{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;font:inherit;font-size:14px;line-height:1.6;color:var(--ink)}
 .bkmemo:focus{outline:none;border-color:var(--accent)}
+
+.memotext{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.6;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.mt-in.clamp{max-height:calc(1.6em * 4);overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+.memoacts{display:flex;gap:6px;justify-content:flex-end}
