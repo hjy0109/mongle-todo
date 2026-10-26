@@ -1,4 +1,4 @@
-import { S, todosOn, index, render as requestRender, saveProfile, saveSettings, putDay, addTodo, toggleTodo, updateTodo, deleteTodo, moveTodo, setRepeat, toggleHabit, ensureRoutines, ensureLoaded, later, putTodo, setShare, sharedCats, unseenReactions } from './store.js';
+import { S, todosOn, index, render as requestRender, saveProfile, saveSettings, putDay, addTodo, toggleTodo, updateTodo, deleteTodo, moveTodo, setRepeat, toggleHabit, ensureRoutines, ensureLoaded, loadAllDays, later, putTodo, setShare, sharedCats, unseenReactions } from './store.js';
 import { AVATARS, STICKERS, avatarHTML, stickerHTML } from './pixels.js';
 import { key, fromKey, addDays, addKey, todayKey, WD, fmtDay, esc, uid, ddLabel, fmtT, pad, rnd } from './util.js';
 import { THEMES, GARDENS, COLORS, SHAPES, sprite, spriteInner, themeOf, gardenOf, gardenIdOf } from './themes.js';
@@ -184,14 +184,54 @@ function renderHabit(wide) {
   if (st().showBook) h += bookCard();
   return h + '</div>';
 }
-const memoBtn = b => `<button class="memobtn${U.bookMemo === b.id ? ' on' : ''}${b.memo ? ' has' : ''}" data-act="bookMemo" data-id="${esc(b.id)}" aria-expanded="${U.bookMemo === b.id}" aria-label="책 메모">${I.note}</button>`;
-const memoBox = b => {
-  if (U.bookMemo !== b.id) return '';
-  const memo = b.memo || '', editing = U.memoEdit === b.id || !memo;
-  if (editing) return `<div class="memobox"><textarea id="bk-memo-${esc(b.id)}" data-bid="${esc(b.id)}" class="bkmemo" rows="6" placeholder="인상 깊은 문장, 생각, 줄거리 메모를 자유롭게 적어요">${esc(memo)}</textarea><div class="row"><span class="hint">다른 곳을 누르면 자동으로 저장돼요</span><button class="btn sm" data-act="memoDone" data-id="${esc(b.id)}">완료</button></div></div>`;
-  const long = memo.length > 140 || memo.split('\n').length > 4, full = U.memoFull === b.id;
-  return `<div class="memobox"><div class="memotext"><div class="mt-in${long && !full ? ' clamp' : ''}">${esc(memo)}</div></div><div class="memoacts">${long ? `<button class="btn ghost sm" data-act="memoFull" data-id="${esc(b.id)}">${full ? '접기' : '펼치기'}</button>` : ''}<button class="btn ghost sm" data-act="memoEdit" data-id="${esc(b.id)}">편집</button></div></div>`;
-};
+/* ---------- reading journal (date-based notes per book) ---------- */
+const bookNotes = bid => Object.values(S.days).filter(d => d.bnotes && (d.bnotes[bid] || '').trim()).map(d => d.date);
+const memoBtn = b => { const n = bookNotes(b.id).length + (b.memo ? 1 : 0); return `<button class="memo-btn" data-act="journal" data-id="${esc(b.id)}" aria-label="${esc(b.title)} 독서 메모">${I.note}메모${n ? ' ' + n : ''}</button>`; };
+function journalCopyText(b) {
+  const keys = bookNotes(b.id).sort();
+  return `『${b.title}』 독서 메모\n\n` + keys.map(k => { const rg = S.days[k]?.reading?.[b.id]; return `■ ${fmtDay(k)}${rg ? ` (p.${rg[0]}–${rg[1]})` : ''}\n${S.days[k].bnotes[b.id].trim()}`; }).join('\n\n');
+}
+function journalHTML(wide) {
+  const b = books().find(x => x.id === U.journal);
+  if (!b) { U.journal = null; return ''; }
+  const TK = todayKey();
+  const keys = new Set(bookNotes(b.id));
+  Object.values(S.days).forEach(d => { if (d.reading && d.reading[b.id]) keys.add(d.date); });
+  if (U.jEdit) keys.add(U.jEdit);
+  const list = [...keys].sort().reverse();
+  const pct = Math.round(b.page / b.total * 100);
+  const entry = k => {
+    const txt = (S.days[k]?.bnotes?.[b.id] || ''), rg = S.days[k]?.reading?.[b.id], editing = U.jEdit === k;
+    const long = txt.length > 140 || txt.split('\n').length > 4, full = U.jFull === k;
+    let h = `<div class="entry${k === TK ? ' today' : ''}"><div class="ehd"><span class="d">${k === TK ? '오늘 · ' : ''}${fmtDay(k)}</span>${rg ? `<span class="pgrange">p.${rg[0]} → ${rg[1]}</span>` : ''}${!editing && long ? `<button class="emore" data-act="jFull" data-k="${k}">${full ? '접기 ▴' : '펼치기 ▾'}</button>` : ''}</div>`;
+    if (editing) h += `${U.jPast ? `<label class="daypick">날짜 <input type="date" id="jr-date" value="${k}" max="${TK}"></label>` : ''}<textarea id="jr-ta" class="jr-ta" placeholder="이날 읽으며 든 생각, 인상 깊은 문장을 적어요">${esc(txt)}</textarea><div class="eacts"><button data-act="jCancel">취소</button><button class="btn sm" data-act="jSave" data-k="${k}">저장</button></div>`;
+    else if (txt.trim()) h += `<div class="etext${long && !full ? ' clamp' : ''}">${esc(txt)}</div><div class="eacts"><button data-act="jEdit" data-k="${k}">수정</button><button class="${armed('jdel:' + k) ? 'warn' : ''}" data-act="jDel" data-k="${k}">${armed('jdel:' + k) ? '한 번 더 누르면 삭제' : '삭제'}</button></div>`;
+    else h += `<div class="sub">읽은 기록만 있어요.</div><div class="eacts"><button data-act="jEdit" data-k="${k}">메모 쓰기</button></div>`;
+    return h + '</div>';
+  };
+  return `<div class="jpage${wide ? ' wide' : ''}" role="dialog" aria-label="${esc(b.title)} 독서 메모"><div class="jbox">
+    <div class="pghd"><button class="back" data-act="jClose" aria-label="뒤로">${I.left}</button>
+      <div class="t"><b>${esc(b.title)}</b><span class="sub">p.${b.page} / ${b.total} · ${pct}% · 메모 ${bookNotes(b.id).length}개</span></div>
+      <button class="btn ghost sm" data-act="jCopy">전체 복사</button></div>
+    <div class="pgbody">${list.length ? list.map(entry).join('') : '<div class="sub" style="text-align:center;padding:30px 0">아직 메모가 없어요.<br>아래 ‘+ 오늘 메모’로 첫 메모를 남겨 보세요.</div>'}
+      ${U.jEdit ? '' : '<button class="linkbtn" data-act="jPast">지난 날짜에 메모 남기기</button>'}
+      ${S.loadingDays ? '<div class="sub" style="text-align:center">예전 기록 불러오는 중…</div>' : ''}</div>
+    ${U.jEdit ? '' : '<button class="btn fab" data-act="jToday">+ 오늘 메모</button>'}
+    ${U.jCopy ? `<div class="copyprev"><div class="row"><b style="font-size:14px">${U.jCopy === 'ok' ? '복사했어요. 붙여넣기만 하면 돼요' : '아래 글을 길게 눌러 복사하세요'}</b><button class="sub" data-act="jCopyClose">닫기</button></div><textarea readonly class="copyta" id="jr-copy">${esc(journalCopyText(b))}</textarea></div>` : ''}
+  </div></div>`;
+}
+function saveJournal(k, text) {
+  const b = books().find(x => x.id === U.journal); if (!b) return;
+  const d = S.days[k] || {};
+  putDay(k, { bnotes: { ...(d.bnotes || {}), [b.id]: String(text).slice(0, 20000) } });
+}
+function migrateMemo(b) {
+  if (!b.memo) return;
+  const TK = todayKey(), cur = S.days[TK]?.bnotes?.[b.id] || '';
+  const d = S.days[TK] || {};
+  putDay(TK, { bnotes: { ...(d.bnotes || {}), [b.id]: cur ? `${b.memo}\n\n${cur}` : b.memo } });
+  saveProfile({ books: books().map(x => x.id === b.id ? { ...x, memo: '' } : x), book: null });
+}
 const books = () => P().books || (P().book ? [{ id: 'b0', ...P().book }] : []);
 function bookForm(b) {
   return `<div class="card stack" style="background:var(--surface)"><div class="bookform"><label class="full">책 제목<input class="field" id="bk-title" value="${esc(b?.title || '')}" autocomplete="off"></label>
@@ -207,13 +247,13 @@ function bookCard() {
   for (const b of reading) {
     if (U.bookEdit === b.id) { h += bookForm(b); continue; }
     const pct = Math.round(b.page / b.total * 100);
-    h += `<div class="bookrow"><div class="cover">${esc(b.title)}</div><div class="binfo"><div class="row" style="align-items:flex-start"><b style="overflow-wrap:anywhere;min-width:0">${esc(b.title)}</b><span style="display:flex;gap:2px;flex:none">${memoBtn(b)}<button class="more" data-act="bookEdit" data-id="${esc(b.id)}" aria-label="책 수정">${I.dots}</button></span></div>
+    h += `<div class="bookrow"><div class="cover">${esc(b.title)}</div><div class="binfo"><div class="row" style="align-items:flex-start"><b style="overflow-wrap:anywhere;min-width:0">${esc(b.title)}</b><span style="display:flex;gap:4px;flex:none;align-items:center">${memoBtn(b)}<button class="more" data-act="bookEdit" data-id="${esc(b.id)}" aria-label="책 수정">${I.dots}</button></span></div>
       <div class="row"><span class="sub">p.${b.page} / ${b.total}</span><b>${pct}%</b></div><div class="bar"><i style="width:${Math.min(100, pct)}%"></i></div>
-      <div class="bk-btns"><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="10">+10쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="30">+30쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="-10">-10쪽</button></div></div></div>${memoBox(b)}`;
+      <div class="bk-btns"><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="10">+10쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="30">+30쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="-10">-10쪽</button></div></div></div>`;
   }
   if (done.length) {
     h += `<button class="sdhead" data-act="booksDone" style="border-top:1px dashed var(--line);padding-top:10px">다 읽은 책 <span class="pill-tag">${done.length}</span><span class="tog">${U.booksDone ? '접기' : '펼치기'}</span></button>`;
-    if (U.booksDone) h += done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).map(b => `<div class="plan-i"><span class="nm">📖 ${esc(b.title)}<br><span class="sub">${b.doneAt ? fmtDay(key(new Date(b.doneAt))) + ' 완독 · ' : ''}${b.total}쪽</span></span>${memoBtn(b)}<button class="btn ghost sm" data-act="bookReopen" data-id="${esc(b.id)}">다시 읽기</button><button class="xbtn${armed('bdel:' + b.id) ? ' warn' : ''}" data-act="bookDel" data-id="${esc(b.id)}" aria-label="삭제">${armed('bdel:' + b.id) ? '삭제' : '×'}</button></div>${memoBox(b)}`).join('');
+    if (U.booksDone) h += done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).map(b => `<div class="plan-i"><span class="nm">📖 ${esc(b.title)}<br><span class="sub">${b.doneAt ? fmtDay(key(new Date(b.doneAt))) + ' 완독 · ' : ''}${b.total}쪽</span></span>${memoBtn(b)}<button class="btn ghost sm" data-act="bookReopen" data-id="${esc(b.id)}">다시 읽기</button><button class="xbtn${armed('bdel:' + b.id) ? ' warn' : ''}" data-act="bookDel" data-id="${esc(b.id)}" aria-label="삭제">${armed('bdel:' + b.id) ? '삭제' : '×'}</button></div>`).join('');
   }
   return h + '</div>';
 }
@@ -481,7 +521,7 @@ export function renderAll() {
     $('wright').hidden = U.tab !== 'todo';
     if (U.tab === 'todo') setHTML($('wright'), webRight());
   }
-  const sh = sheetHTML(); if (!sh) lastSheetKey = ''; setHTML($('ov'), sh);
+  const sh = U.journal ? journalHTML(want === 'web') : sheetHTML(); if (!sh || U.journal) lastSheetKey = ''; setHTML($('ov'), sh);
   if (focusId) {
     const el = $(focusId);
     if (el && el !== document.activeElement) {
@@ -491,7 +531,7 @@ export function renderAll() {
     }
   }
   for (const id of Object.keys(drafts)) { const el = $(id); if (!el) delete drafts[id]; else if (el.value !== drafts[id]) el.value = drafts[id]; }
-  if (U.focusMemo) { const m = document.querySelector('.bkmemo'); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusMemo = null; }
+  if (U.focusMemo) { const m = $('jr-ta'); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusMemo = null; }
   if (U.focusAdd) { const ai = $('addinput'); if (ai) { ai.focus({ preventScroll: true }); U.focusAdd = false; } }
 }
 const $ = id => document.getElementById(id);
@@ -563,7 +603,7 @@ async function doRestore(file) {
 export function bindEvents(hooks) {
   document.addEventListener('click', e => {
     const tb = e.target.closest('[data-tab]');
-    if (tb) { U.addOpen = false; U.manageOpen = false; U.tab = tb.dataset.tab; U.adding = null; U.sheet = null; U.ddsheet = false; U.arm = null; U.gardenPick = false; const sc = $('scr') || $('wmain'); if (sc) sc.scrollTop = 0; if (U.tab === 'set') refreshNotif(); requestRender(); return; }
+    if (tb) { if (U.journal) { flushJournal(); U.journal = null; U.jEdit = null; } U.addOpen = false; U.manageOpen = false; U.tab = tb.dataset.tab; U.adding = null; U.sheet = null; U.ddsheet = false; U.arm = null; U.gardenPick = false; const sc = $('scr') || $('wmain'); if (sc) sc.scrollTop = 0; if (U.tab === 'set') refreshNotif(); requestRender(); return; }
     const el = e.target.closest('[data-act]');
     if (!el) { if (U.arm) { U.arm = null; requestRender(); } return; }
     const a = el.dataset.act, id = el.dataset.id, v = el.dataset.v;
@@ -600,7 +640,10 @@ export function bindEvents(hooks) {
       case 'habitEdit': U.habitEdit = !U.habitEdit; break;
       case 'habitDel': if (arm('hdel:' + id)) saveProfile({ habits: P().habits.filter(h => h.id !== id) }); break;
       case 'habitAdd': addHabit(); break;
-      case 'book': { const list = books(), b = list.find(x => x.id === id); if (b) { const page = Math.max(0, Math.min(b.total, b.page + +v)), fin = page === b.total; saveProfile({ books: list.map(x => x.id === id ? { ...x, page, done: fin, doneAt: fin ? Date.now() : null } : x), book: null }); if (fin) toast(`‘${b.title}’ 다 읽었어요! 다 읽은 책으로 옮겼어요`); } break; }
+      case 'book': { const list = books(), b = list.find(x => x.id === id); if (b) { const page = Math.max(0, Math.min(b.total, b.page + +v)), fin = page === b.total;
+        { const TK = todayKey(), d = S.days[TK] || {}, cur = d.reading?.[id]; let rg = null;
+          if (+v > 0) rg = cur ? [cur[0], page] : [b.page, page]; else if (cur) rg = [cur[0], Math.max(cur[0], page)];
+          if (rg) { const reading = { ...(d.reading || {}) }; if (rg[1] > rg[0]) reading[id] = rg; else delete reading[id]; putDay(TK, { reading }); } } saveProfile({ books: list.map(x => x.id === id ? { ...x, page, done: fin, doneAt: fin ? Date.now() : null } : x), book: null }); if (fin) toast(`‘${b.title}’ 다 읽었어요! 다 읽은 책으로 옮겼어요`); } break; }
       case 'bookEdit': U.bookEdit = id || null; clearDraft('bk-title', 'bk-page', 'bk-total'); break;
       case 'bookSave': {
         const title = $('bk-title').value.trim(), total = Math.max(1, +$('bk-total').value || 0), page = Math.max(0, Math.min(total, +$('bk-page').value || 0));
@@ -613,10 +656,17 @@ export function bindEvents(hooks) {
       case 'bookDel': if (arm('bdel:' + id)) { saveProfile({ books: books().filter(x => x.id !== id), book: null }); U.bookEdit = null; } break;
       case 'bookReopen': saveProfile({ books: books().map(x => x.id === id ? { ...x, done: false, doneAt: null, page: 0 } : x), book: null }); toast('다시 읽기 시작해요'); break;
       case 'booksDone': U.booksDone = !U.booksDone; break;
-      case 'bookMemo': U.bookMemo = U.bookMemo === id ? null : id; U.memoEdit = null; U.memoFull = null; break;
-      case 'memoEdit': U.memoEdit = id; U.focusMemo = id; break;
-      case 'memoDone': U.memoEdit = null; break;
-      case 'memoFull': U.memoFull = U.memoFull === id ? null : id; break;
+      case 'journal': { const b = books().find(x => x.id === id); if (b) { migrateMemo(b); U.journal = id; U.jEdit = null; U.jFull = null; U.jCopy = null; loadAllDays(); } break; }
+      case 'jClose': flushJournal(); U.journal = null; U.jEdit = null; U.jCopy = null; break;
+      case 'jFull': U.jFull = U.jFull === el.dataset.k ? null : el.dataset.k; break;
+      case 'jEdit': flushJournal(); U.jEdit = el.dataset.k; U.jPast = false; U.focusMemo = 1; break;
+      case 'jToday': U.jEdit = todayKey(); U.jPast = false; U.focusMemo = 1; break;
+      case 'jPast': U.jEdit = addKey(todayKey(), -1); U.jPast = true; U.focusMemo = 1; break;
+      case 'jCancel': U.jEdit = null; U.jPast = false; clearDraft('jr-ta'); break;
+      case 'jSave': { const k = U.jPast ? ($('jr-date')?.value || el.dataset.k) : el.dataset.k; if (k > todayKey()) { toast('오늘 이후 날짜에는 쓸 수 없어요'); break; } saveJournal(k, $('jr-ta').value); U.jEdit = null; U.jPast = false; clearDraft('jr-ta'); toast('메모를 저장했어요'); break; }
+      case 'jDel': if (arm('jdel:' + el.dataset.k)) { saveJournal(el.dataset.k, ''); toast('이날 메모를 지웠어요'); } break;
+      case 'jCopy': { const b = books().find(x => x.id === U.journal); const t = b ? journalCopyText(b) : ''; U.jCopy = 'manual'; (navigator.clipboard?.writeText(t) || Promise.reject()).then(() => { U.jCopy = 'ok'; requestRender(); }).catch(() => {}); break; }
+      case 'jCopyClose': U.jCopy = null; break;
       case 'gardenPick': U.gardenPick = !U.gardenPick; break;
       case 'garden': saveSettings({ garden: v }); U.gardenPick = false; break;
       case 'theme': saveSettings({ theme: v }); break;
@@ -720,7 +770,7 @@ export function bindEvents(hooks) {
     else if (e.target.classList.contains('cname')) { const nv = v.trim(); if (nv) saveProfile({ cats: P().cats.map(c => c.id === e.target.dataset.cid ? { ...c, name: nv } : c) }); }
     else if (e.target.classList.contains('hname')) { const nv = v.trim(); if (nv) saveProfile({ habits: P().habits.map(h => h.id === e.target.dataset.hid ? { ...h, name: nv } : h) }); }
     else if (id === 'restorefile' && e.target.files[0]) doRestore(e.target.files[0]);
-    else if (e.target.classList.contains('bkmemo')) { const bid = e.target.dataset.bid, list = books(); if (list.some(x => x.id === bid && (x.memo || '') !== v)) { saveProfile({ books: list.map(x => x.id === bid ? { ...x, memo: v.slice(0, 5000) } : x), book: null }); toast('메모를 저장했어요'); } clearDraft(id); }
+
     else return;
     requestRender();
   });
@@ -729,7 +779,14 @@ export function bindEvents(hooks) {
   let rt, wideNow = innerWidth >= 960; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if ((innerWidth >= 960) !== wideNow) { wideNow = innerWidth >= 960; requestRender(); } }, 150); });
 }
 
+function flushJournal() {
+  const ta = $('jr-ta'); if (!ta || !U.jEdit) return;
+  const k = U.jPast ? ($('jr-date')?.value || U.jEdit) : U.jEdit, cur = S.days[k]?.bnotes?.[U.journal] || '';
+  if (ta.value !== cur && k <= todayKey()) { saveJournal(k, ta.value); toast('메모를 저장했어요'); }
+  clearDraft('jr-ta');
+}
 export function handleBack() {
+  if (U.journal) { if (U.jCopy) U.jCopy = null; else if (U.jEdit) { flushJournal(); U.jEdit = null; } else U.journal = null; requestRender(); return true; }
   if (U.sheet || U.ddsheet) { U.sheet = null; U.ddsheet = false; requestRender(); return true; }
   if (U.adding) { U.adding = null; requestRender(); return true; }
   if (U.tab !== 'todo') { U.tab = 'todo'; requestRender(); return true; }

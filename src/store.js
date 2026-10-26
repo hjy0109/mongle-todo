@@ -161,3 +161,15 @@ export function setShare(catId, on) {
 }
 export const sharedCats = () => S.profile.cats.filter(c => (S.profile.share || []).includes(c.id)).map(c => ({ id: c.id, name: c.name, color: c.color }));
 export const unseenReactions = () => Object.values(S.social.reactions).filter(r => !r.seen && S.social.friends.includes(r.from));
+
+/* load every day document once (used by the reading journal to show old notes) */
+export async function loadAllDays() {
+  if (S.allDays || S.loadingDays || !S.daysFrom) return;
+  S.loadingDays = true; render();
+  try {
+    const d = await B().loadRange('days', '0000-00-00', S.daysFrom);
+    d.forEach(x => { if (!S.days[x.id]) S.days[x.id] = x.data; });
+    S.allDays = true;
+  } catch (e) { console.error(e); }
+  S.loadingDays = false; render();
+}

@@ -107,7 +107,7 @@ async function boot() {
     if (stopSocial) { stopSocial(); stopSocial = null; }
     S.user = user; S.authReady = true; S.synced = false; S.todos = {}; S.routines = {}; S.days = {};
     if (user) {
-      const c = cutoffs(); S.loadedFrom = c.todoCutoff;
+      const c = cutoffs(); S.loadedFrom = c.todoCutoff; S.daysFrom = c.dayCutoff; S.allDays = false;
       stop = backend.start(user.uid, { ...handlers(), synced: (() => { const h = handlers().synced; return () => { h(); applyWidgetToggles(); }; })() }, c);
       if (backend.social?.enabled) stopSocial = startSocial(backend, user.uid, c.todoCutoff);
       refreshNotif();
