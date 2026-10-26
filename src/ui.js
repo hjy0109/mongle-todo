@@ -22,6 +22,7 @@ const I = {
   tHabit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9 5 4.5 5c0 4 3 7 7.5 7z"/><path d="M12 14c0-3.5 2.5-6 7-6 0 3.5-2.5 6-7 6z"/></svg>',
   tFriends: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="9" r="3.5"/><circle cx="17" cy="10" r="2.5"/><path d="M3 19c.8-3.2 3.2-5 6-5s5.2 1.8 6 5M15 15.2c2.6-.4 4.6 1 5.4 3.8"/></svg>',
   smile: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="12" r="8"/><path d="M7.8 14.5c.9 1.2 2 1.8 3.2 1.8s2.3-.6 3.2-1.8M8.5 10h.01M13.5 10h.01"/><path d="M20 2.5v4M18 4.5h4"/></svg>',
+  note: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10l4 4v12H5z"/><path d="M9 11h6M9 15h4"/></svg>',
   tSet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>',
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="4"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>',
   repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V9a3 3 0 013-3h12l-3-3M20 13v2a3 3 0 01-3 3H5l3 3"/></svg>',
@@ -183,6 +184,8 @@ function renderHabit(wide) {
   if (st().showBook) h += bookCard();
   return h + '</div>';
 }
+const memoBtn = b => `<button class="memobtn${U.bookMemo === b.id ? ' on' : ''}${b.memo ? ' has' : ''}" data-act="bookMemo" data-id="${esc(b.id)}" aria-expanded="${U.bookMemo === b.id}" aria-label="책 메모">${I.note}</button>`;
+const memoBox = b => U.bookMemo === b.id ? `<div class="memobox"><textarea id="bk-memo-${esc(b.id)}" data-bid="${esc(b.id)}" class="bkmemo" rows="5" placeholder="인상 깊은 문장, 생각, 줄거리 메모를 자유롭게 적어요">${esc(b.memo || '')}</textarea><div class="hint">다른 곳을 누르면 자동으로 저장돼요</div></div>` : '';
 const books = () => P().books || (P().book ? [{ id: 'b0', ...P().book }] : []);
 function bookForm(b) {
   return `<div class="card stack" style="background:var(--surface)"><div class="bookform"><label class="full">책 제목<input class="field" id="bk-title" value="${esc(b?.title || '')}" autocomplete="off"></label>
@@ -198,13 +201,13 @@ function bookCard() {
   for (const b of reading) {
     if (U.bookEdit === b.id) { h += bookForm(b); continue; }
     const pct = Math.round(b.page / b.total * 100);
-    h += `<div class="bookrow"><div class="cover">${esc(b.title)}</div><div class="binfo"><div class="row" style="align-items:flex-start"><b style="overflow-wrap:anywhere;min-width:0">${esc(b.title)}</b><button class="more" data-act="bookEdit" data-id="${esc(b.id)}" aria-label="책 수정">${I.dots}</button></div>
+    h += `<div class="bookrow"><div class="cover">${esc(b.title)}</div><div class="binfo"><div class="row" style="align-items:flex-start"><b style="overflow-wrap:anywhere;min-width:0">${esc(b.title)}</b><span style="display:flex;gap:2px;flex:none">${memoBtn(b)}<button class="more" data-act="bookEdit" data-id="${esc(b.id)}" aria-label="책 수정">${I.dots}</button></span></div>
       <div class="row"><span class="sub">p.${b.page} / ${b.total}</span><b>${pct}%</b></div><div class="bar"><i style="width:${Math.min(100, pct)}%"></i></div>
-      <div class="bk-btns"><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="10">+10쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="30">+30쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="-10">-10쪽</button></div></div></div>`;
+      <div class="bk-btns"><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="10">+10쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="30">+30쪽</button><button class="btn ghost sm" data-act="book" data-id="${esc(b.id)}" data-v="-10">-10쪽</button></div></div></div>${memoBox(b)}`;
   }
   if (done.length) {
     h += `<button class="sdhead" data-act="booksDone" style="border-top:1px dashed var(--line);padding-top:10px">다 읽은 책 <span class="pill-tag">${done.length}</span><span class="tog">${U.booksDone ? '접기' : '펼치기'}</span></button>`;
-    if (U.booksDone) h += done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).map(b => `<div class="plan-i"><span class="nm">📖 ${esc(b.title)}<br><span class="sub">${b.doneAt ? fmtDay(key(new Date(b.doneAt))) + ' 완독 · ' : ''}${b.total}쪽</span></span><button class="btn ghost sm" data-act="bookReopen" data-id="${esc(b.id)}">다시 읽기</button><button class="xbtn${armed('bdel:' + b.id) ? ' warn' : ''}" data-act="bookDel" data-id="${esc(b.id)}" aria-label="삭제">${armed('bdel:' + b.id) ? '삭제' : '×'}</button></div>`).join('');
+    if (U.booksDone) h += done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).map(b => `<div class="plan-i"><span class="nm">📖 ${esc(b.title)}<br><span class="sub">${b.doneAt ? fmtDay(key(new Date(b.doneAt))) + ' 완독 · ' : ''}${b.total}쪽</span></span>${memoBtn(b)}<button class="btn ghost sm" data-act="bookReopen" data-id="${esc(b.id)}">다시 읽기</button><button class="xbtn${armed('bdel:' + b.id) ? ' warn' : ''}" data-act="bookDel" data-id="${esc(b.id)}" aria-label="삭제">${armed('bdel:' + b.id) ? '삭제' : '×'}</button></div>${memoBox(b)}`).join('');
   }
   return h + '</div>';
 }
@@ -603,6 +606,7 @@ export function bindEvents(hooks) {
       case 'bookDel': if (arm('bdel:' + id)) { saveProfile({ books: books().filter(x => x.id !== id), book: null }); U.bookEdit = null; } break;
       case 'bookReopen': saveProfile({ books: books().map(x => x.id === id ? { ...x, done: false, doneAt: null, page: 0 } : x), book: null }); toast('다시 읽기 시작해요'); break;
       case 'booksDone': U.booksDone = !U.booksDone; break;
+      case 'bookMemo': U.bookMemo = U.bookMemo === id ? null : id; break;
       case 'gardenPick': U.gardenPick = !U.gardenPick; break;
       case 'garden': saveSettings({ garden: v }); U.gardenPick = false; break;
       case 'theme': saveSettings({ theme: v }); break;
@@ -706,6 +710,7 @@ export function bindEvents(hooks) {
     else if (e.target.classList.contains('cname')) { const nv = v.trim(); if (nv) saveProfile({ cats: P().cats.map(c => c.id === e.target.dataset.cid ? { ...c, name: nv } : c) }); }
     else if (e.target.classList.contains('hname')) { const nv = v.trim(); if (nv) saveProfile({ habits: P().habits.map(h => h.id === e.target.dataset.hid ? { ...h, name: nv } : h) }); }
     else if (id === 'restorefile' && e.target.files[0]) doRestore(e.target.files[0]);
+    else if (e.target.classList.contains('bkmemo')) { const bid = e.target.dataset.bid, list = books(); if (list.some(x => x.id === bid && (x.memo || '') !== v)) { saveProfile({ books: list.map(x => x.id === bid ? { ...x, memo: v.slice(0, 5000) } : x), book: null }); toast('메모를 저장했어요'); } clearDraft(id); }
     else return;
     requestRender();
   });
