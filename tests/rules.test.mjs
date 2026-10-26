@@ -57,6 +57,7 @@ test('reactions: friend can react only to shared todos as themself', async () =>
   await assertFails(setDoc(doc(db('bob'), 'users/alice/reactions/t1_alice'), rx('alice', 't1')));
   await assertFails(setDoc(doc(db('bob'), 'users/alice/reactions/t1_bob'), rx('bob', 't1', { seen: true })));
   await assertFails(setDoc(doc(db('bob'), 'users/alice/reactions/t1_bob'), rx('bob', 't1', { extra: 1 })));
+  await assertFails(setDoc(doc(db('bob'), 'users/alice/reactions/t1_bob'), rx('bob', 't1', { sticker: '<img src=x>' })));
   await assertSucceeds(getDocs(query(collection(db('bob'), 'users/alice/reactions'), where('from', '==', 'bob'), where('date', '==', D))));
   await assertSucceeds(deleteDoc(doc(db('bob'), 'users/alice/reactions/t1_bob')));
 });
@@ -70,6 +71,7 @@ test('public profiles', async () => {
   await assertSucceeds(setDoc(doc(db('bob'), 'publicProfiles/bob'), { nickname: 'B', avatar: 'penguin', code: 'MONG-BBBB', sharedCats: [] }));
   await assertFails(setDoc(doc(db('bob'), 'publicProfiles/alice'), { nickname: 'X' }, { merge: true }));
   await assertFails(setDoc(doc(db('bob'), 'publicProfiles/bob'), { nickname: 'B', admin: true }));
+  await assertFails(setDoc(doc(db('bob'), 'publicProfiles/bob'), { nickname: 'B', avatar: '__proto__', code: 'MONG-BBBB', sharedCats: [] }));
 });
 test('friend codes', async () => {
   await assertSucceeds(getDoc(doc(db('carol'), 'codes/MONG-AAAA')));

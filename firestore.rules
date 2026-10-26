@@ -42,7 +42,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['todoId', 'from', 'sticker', 'date', 'text', 'createdAt', 'seen'])
           && request.resource.data.from == me()
           && rid == request.resource.data.todoId + '_' + me()
-          && request.resource.data.sticker is string && request.resource.data.sticker.size() <= 20
+          && request.resource.data.sticker in ['heart', 'thumb', 'fire', 'lol', 'cry', 'angry']
           && request.resource.data.text is string && request.resource.data.text.size() <= 80
           && request.resource.data.seen == false
           && get(/databases/$(database)/documents/users/$(uid)/todos/$(request.resource.data.todoId)).data.shared == true;
@@ -53,7 +53,10 @@ service cloud.firestore {
       allow read: if signedIn() && (me() == uid || friends(uid, me()) || requested(uid, me()));
       allow create, update: if signedIn() && me() == uid
         && request.resource.data.keys().hasOnly(['nickname', 'avatar', 'code', 'sharedCats'])
-        && request.resource.data.nickname is string && request.resource.data.nickname.size() <= 20;
+        && request.resource.data.nickname is string && request.resource.data.nickname.size() <= 20
+        && (!('avatar' in request.resource.data) || request.resource.data.avatar in ['rabbit', 'turtle', 'penguin', 'dog'])
+        && (!('code' in request.resource.data) || (request.resource.data.code is string && request.resource.data.code.size() <= 12))
+        && (!('sharedCats' in request.resource.data) || (request.resource.data.sharedCats is list && request.resource.data.sharedCats.size() <= 30));
       allow delete: if signedIn() && me() == uid;
     }
 

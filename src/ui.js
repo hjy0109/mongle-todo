@@ -34,6 +34,7 @@ const fprof = uid => S.social.profiles[uid] || { nickname: '친구', avatar: 'ra
 
 const P = () => S.profile;
 const st = () => S.profile.settings;
+const cc = c => (COLORS.includes(c) ? c : 'c10');
 const catOf = id => P().cats.find(c => c.id === id) || { id, name: '분류 없음', color: 'c10' };
 const T = t => fmtT(t, st().h24);
 const armed = k => U.arm === k;
@@ -78,7 +79,7 @@ function ddayStrip() {
 }
 function todoRow(t) {
   const sd = (t.subs || []).filter(s => s.done).length;
-  let h = `<li class="todo${t.done ? ' done' : ''}"><button class="chk" data-act="toggle" data-id="${t.id}" aria-label="완료 표시">${I.checkW}</button><div class="txw"><span class="tx">${esc(t.text)}</span>`;
+  let h = `<li class="todo${t.done ? ' done' : ''}"><button class="chk" data-act="toggle" data-id="${esc(t.id)}" aria-label="완료 표시">${I.checkW}</button><div class="txw"><span class="tx">${esc(t.text)}</span>`;
   const meta = [];
   if (t.time) meta.push(`<span class="bell">${I.bell}${T(t.time)}</span>`);
   if (t.routineId && S.routines[t.routineId]) meta.push(`<span class="tagp">${I.repeat}${repName(S.routines[t.routineId].rule)}</span>`);
@@ -86,14 +87,14 @@ function todoRow(t) {
   if (meta.length) h += `<span class="meta">${meta.join('')}</span>`;
   const rx = Object.values(S.social.reactions).filter(r => r.todoId === t.id && S.social.friends.includes(r.from));
   if (rx.length) h += `<span class="rx">${rx.map(r => `<span class="rxp${r.seen ? '' : ' new'}" title="${esc(fprof(r.from).nickname)}">${avatarHTML(fprof(r.from).avatar, 18)}${stickerHTML(r.sticker, 16)}</span>`).join('')}</span>`;
-  h += `</div><button class="more" data-act="more" data-id="${t.id}" aria-label="할 일 메뉴">${I.dots}</button></li>`;
-  if ((t.subs || []).length && !t.done) h += `<li><ul class="subs">${t.subs.map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${t.id}" data-s="${s.id}" aria-label="하위 할 일 완료">${I.checkW}</button><span>${esc(s.text)}</span></li>`).join('')}</ul></li>`;
+  h += `</div><button class="more" data-act="more" data-id="${esc(t.id)}" aria-label="할 일 메뉴">${I.dots}</button></li>`;
+  if ((t.subs || []).length && !t.done) h += `<li><ul class="subs">${t.subs.map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${esc(t.id)}" data-s="${esc(s.id)}" aria-label="하위 할 일 완료">${I.checkW}</button><span>${esc(s.text)}</span></li>`).join('')}</ul></li>`;
   return h;
 }
 function catBlock(c, k) {
   const items = todosOn(k).filter(t => t.cat === c.id);
   const pub = S.backend.social?.enabled && (P().share || []).includes(c.id);
-  let h = `<button class="chip" data-act="add" data-cat="${c.id}"><span class="dot"></span>${esc(c.name)}<span class="plus">+</span></button>${pub ? ' <span class="pubtag">친구 공개</span>' : ''}<ul class="todos">`;
+  let h = `<button class="chip" data-act="add" data-cat="${esc(c.id)}"><span class="dot"></span>${esc(c.name)}<span class="plus">+</span></button>${pub ? ' <span class="pubtag">친구 공개</span>' : ''}<ul class="todos">`;
   h += items.map(todoRow).join('');
   if (U.adding === c.id) h += `<li class="addrow"><span class="chk"></span><input id="addinput" placeholder="할 일 입력 후 Enter" autocomplete="off" enterkeyhint="done"></li>`;
   else if (!items.length) h += '<li class="empty-hint">+ 를 눌러 할 일을 추가해요</li>';
@@ -110,7 +111,7 @@ function somedayBlock() {
   const items = todosOn('');
   let h = `<div class="someday"><button class="sdhead" data-act="sdtoggle">언젠가 할 일 <span class="pill-tag">${items.length}</span><span class="tog">${U.sdOpen ? '접기' : '펼치기'}</span></button>`;
   if (U.sdOpen) {
-    h += items.map(t => { const c = catOf(t.cat); return `<div class="plan-i" style="--c:var(--${c.color})"><span class="chip sm"><span class="dot"></span>${esc(c.name)}</span><span class="nm">${esc(t.text)}</span><button class="btn ghost sm" data-act="schedule" data-id="${t.id}">이 날 하기</button><button class="more" data-act="more" data-id="${t.id}" aria-label="메뉴">${I.dots}</button></div>`; }).join('') || '<div class="sub">비어 있어요</div>';
+    h += items.map(t => { const c = catOf(t.cat); return `<div class="plan-i" style="--c:var(--${cc(c.color)})"><span class="chip sm"><span class="dot"></span>${esc(c.name)}</span><span class="nm">${esc(t.text)}</span><button class="btn ghost sm" data-act="schedule" data-id="${esc(t.id)}">이 날 하기</button><button class="more" data-act="more" data-id="${esc(t.id)}" aria-label="메뉴">${I.dots}</button></div>`; }).join('') || '<div class="sub">비어 있어요</div>';
     h += `<div class="inline-add"><input id="somedayinput" placeholder="날짜 없이 적어두기 (Enter)" autocomplete="off" enterkeyhint="done"></div><div class="hint">‘이 날 하기’를 누르면 지금 보고 있는 ${fmtDay(U.selected)}로 옮겨져요.</div>`;
   }
   return h + '</div>';
@@ -126,7 +127,7 @@ function renderTodo() {
     <div class="dayhd"><h2>${fmtDay(k)}</h2>${k !== todayKey() ? '<button class="pill-tag" data-act="today">오늘로</button>' : ''}${moodBtn(k)}</div>
     <input class="memo" id="memo" placeholder="한 줄 일기를 남겨보세요" value="${esc(S.days[k]?.memo || '')}" autocomplete="off">
     ${newRxCard()}<div class="cats">`;
-  for (const c of P().cats) h += `<div style="--c:var(--${c.color})">${catBlock(c, k)}</div>`;
+  for (const c of P().cats) h += `<div style="--c:var(--${cc(c.color)})">${catBlock(c, k)}</div>`;
   return h + orphanBlock(k) + '</div>' + somedayBlock();
 }
 
@@ -169,13 +170,13 @@ function renderHabit(wide) {
       <div class="stat"><div class="v"><span class="gc sp" style="--gs:22px;background:${w.spBg};border-radius:6px">${sprite(w.sp[0])}</span>${found}</div><div class="k">모은 ${w.unit}</div></div></div>`;
   h += `<div class="card"><div class="row" style="margin-bottom:4px"><span class="lbl b">${hk === TK ? '오늘의 습관' : fmtDay(hk) + ' 습관'} ${on.size}/${total}</span><span style="display:flex;gap:6px">${hk !== TK ? '<button class="btn ghost sm" data-act="hdate" data-k="">오늘로</button>' : ''}<button class="btn ghost sm" data-act="habitEdit">${U.habitEdit ? '완료' : '편집'}</button></span></div>`;
   if (U.habitEdit) {
-    h += P().habits.map(hb => `<div class="hrow"><input id="hname-${hb.id}" data-hid="${hb.id}" class="hname" value="${esc(hb.name)}" aria-label="습관 이름"><button class="xbtn${armed('hdel:' + hb.id) ? ' warn' : ''}" data-act="habitDel" data-id="${hb.id}">${armed('hdel:' + hb.id) ? '삭제' : '×'}</button></div>`).join('');
+    h += P().habits.map(hb => `<div class="hrow"><input id="hname-${hb.id}" data-hid="${hb.id}" class="hname" value="${esc(hb.name)}" aria-label="습관 이름"><button class="xbtn${armed('hdel:' + hb.id) ? ' warn' : ''}" data-act="habitDel" data-id="${esc(hb.id)}">${armed('hdel:' + hb.id) ? '삭제' : '×'}</button></div>`).join('');
     h += `<div class="inline-add" style="margin-top:6px"><input id="habitinput" placeholder="새 습관 이름 (Enter)" autocomplete="off" enterkeyhint="done"><button class="btn sm" data-act="habitAdd">추가</button></div>`;
   } else {
     h += P().habits.map(hb => {
       const done = on.has(hb.id), stk = habitStreak(S, hb.id);
       const wk = [...Array(7)].map((_, i) => { const kk = key(addDays(today, i - 6)); return `<i style="${(S.days[kk]?.habits || []).includes(hb.id) ? 'background:' + w.lv[2] : ''}"></i>`; }).join('');
-      return `<div class="hrow" style="--hc:${w.lv[2]}"><button class="chk${done ? ' on' : ''}" style="--c:var(--hc)" data-act="habit" data-id="${hb.id}" aria-label="${esc(hb.name)} 완료">${I.checkW}</button><div class="txw"><span>${esc(hb.name)}</span><span class="sub">${stk ? stk + '일 연속' : '오늘부터 시작'}</span></div><div class="week7" aria-label="최근 7일">${wk}</div></div>`;
+      return `<div class="hrow" style="--hc:${w.lv[2]}"><button class="chk${done ? ' on' : ''}" style="--c:var(--hc)" data-act="habit" data-id="${esc(hb.id)}" aria-label="${esc(hb.name)} 완료">${I.checkW}</button><div class="txw"><span>${esc(hb.name)}</span><span class="sub">${stk ? stk + '일 연속' : '오늘부터 시작'}</span></div><div class="week7" aria-label="최근 7일">${wk}</div></div>`;
     }).join('') || '<div class="sub">편집을 눌러 습관을 추가해 보세요</div>';
   }
   h += '</div>';
@@ -202,7 +203,7 @@ function bookCard() {
 /* ---------------- alarm tab ---------------- */
 function timedRow(k, t) {
   const c = catOf(t.cat);
-  return `<div class="row trow" style="--c:var(--${c.color})"><span><span class="chip sm"><span class="dot"></span>${esc(c.name)}</span><span style="overflow-wrap:anywhere">${esc(t.text)}</span></span><span class="bell">${k === todayKey() ? '오늘' : fromKey(k).getDate() + '일'} ${T(t.time)}</span></div>`;
+  return `<div class="row trow" style="--c:var(--${cc(c.color)})"><span><span class="chip sm"><span class="dot"></span>${esc(c.name)}</span><span style="overflow-wrap:anywhere">${esc(t.text)}</span></span><span class="bell">${k === todayKey() ? '오늘' : fromKey(k).getDate() + '일'} ${T(t.time)}</span></div>`;
 }
 function alarmSection() {
   const a = st().alarms, TK = todayKey(), idx = index();
@@ -235,8 +236,8 @@ function renderSettings() {
     <div class="card stack"><div class="lbl">습관 정원</div>${gardenPicker()}</div>
     <div class="card"><div class="row" style="margin-bottom:4px"><span class="lbl">카테고리</span>${U.editCat === 'new' ? '' : '<button class="btn ghost sm" data-act="newcat">+ 추가</button>'}</div><div class="sub" style="margin-bottom:4px">색 점을 누르면 색을, 이름을 누르면 이름을 바꿔요</div>`;
   for (const c of P().cats) {
-    h += `<div style="--c:var(--${c.color})"><div class="catline"><button class="dotbtn" data-act="editcat" data-id="${c.id}" aria-label="${esc(c.name)} 색 바꾸기"></button><input id="cname-${c.id}" class="cname" data-cid="${c.id}" value="${esc(c.name)}" aria-label="카테고리 이름">${S.backend.social?.enabled ? `<div class="seg mini"><button class="${(P().share || []).includes(c.id) ? '' : 'on'}" data-act="share" data-id="${c.id}" data-v="0">나만</button><button class="${(P().share || []).includes(c.id) ? 'on' : ''}" data-act="share" data-id="${c.id}" data-v="1">친구 공개</button></div>` : `<span class="sub">${counts[c.id] || 0}개</span>`}<button class="xbtn${armed('cdel:' + c.id) ? ' warn' : ''}" data-act="catdel" data-id="${c.id}" aria-label="삭제">${armed('cdel:' + c.id) ? '삭제' : '×'}</button></div>`;
-    if (U.editCat === c.id) h += `<div class="palette">${COLORS.map(x => `<button class="swatch${c.color === x ? ' on' : ''}" style="--c:var(--${x})" data-act="catcolor" data-id="${c.id}" data-v="${x}" aria-label="색 ${x}"></button>`).join('')}</div>`;
+    h += `<div style="--c:var(--${cc(c.color)})"><div class="catline"><button class="dotbtn" data-act="editcat" data-id="${esc(c.id)}" aria-label="${esc(c.name)} 색 바꾸기"></button><input id="cname-${esc(c.id)}" class="cname" data-cid="${esc(c.id)}" value="${esc(c.name)}" aria-label="카테고리 이름">${S.backend.social?.enabled ? `<div class="seg mini"><button class="${(P().share || []).includes(c.id) ? '' : 'on'}" data-act="share" data-id="${esc(c.id)}" data-v="0">나만</button><button class="${(P().share || []).includes(c.id) ? 'on' : ''}" data-act="share" data-id="${esc(c.id)}" data-v="1">친구 공개</button></div>` : `<span class="sub">${counts[c.id] || 0}개</span>`}<button class="xbtn${armed('cdel:' + c.id) ? ' warn' : ''}" data-act="catdel" data-id="${esc(c.id)}" aria-label="삭제">${armed('cdel:' + c.id) ? '삭제' : '×'}</button></div>`;
+    if (U.editCat === c.id) h += `<div class="palette">${COLORS.map(x => `<button class="swatch${c.color === x ? ' on' : ''}" style="--c:var(--${x})" data-act="catcolor" data-id="${esc(c.id)}" data-v="${x}" aria-label="색 ${x}"></button>`).join('')}</div>`;
     h += '</div>';
   }
   if (U.editCat === 'new') {
@@ -288,10 +289,10 @@ function friendDay(f) {
   const rest = todos.filter(t => !known.has(t.cat));
   if (rest.length) groups.push([{ id: '', name: '기타', color: 'c10' }, rest]);
   for (const [c, items] of groups) {
-    h += `<div style="--c:var(--${c.color})"><span class="chip"><span class="dot"></span>${esc(c.name)}</span><ul class="todos">`;
+    h += `<div style="--c:var(--${cc(c.color)})"><span class="chip"><span class="dot"></span>${esc(c.name)}</span><ul class="todos">`;
     for (const t of items) {
-      h += `<li class="todo${t.done ? ' done' : ''}"><span class="chk"${t.done ? '' : ''}>${I.checkW}</span><div class="txw"><span class="tx">${esc(t.text)}</span>${mine[t.id] ? `<span class="rx"><span class="rxp mine">${avatarHTML(S.social.pub.avatar, 18)}${stickerHTML(mine[t.id], 16)}</span></span>` : ''}</div><button class="more" data-act="pick" data-id="${t.id}" aria-label="반응 남기기">${I.smile}</button></li>`;
-      if (U.picker === t.id) h += `<li><div class="stpicker">${Object.keys(STICKERS).map(k => `<button class="${mine[t.id] === k ? 'on' : ''}" data-act="react" data-id="${t.id}" data-k="${k}" aria-label="${STICKERS[k].name}">${stickerHTML(k, 26)}<span>${STICKERS[k].name}</span></button>`).join('')}</div></li>`;
+      h += `<li class="todo${t.done ? ' done' : ''}"><span class="chk"${t.done ? '' : ''}>${I.checkW}</span><div class="txw"><span class="tx">${esc(t.text)}</span>${mine[t.id] ? `<span class="rx"><span class="rxp mine">${avatarHTML(S.social.pub.avatar, 18)}${stickerHTML(mine[t.id], 16)}</span></span>` : ''}</div><button class="more" data-act="pick" data-id="${esc(t.id)}" aria-label="반응 남기기">${I.smile}</button></li>`;
+      if (U.picker === t.id) h += `<li><div class="stpicker">${Object.keys(STICKERS).map(k => `<button class="${mine[t.id] === k ? 'on' : ''}" data-act="react" data-id="${esc(t.id)}" data-k="${k}" aria-label="${STICKERS[k].name}">${stickerHTML(k, 26)}<span>${STICKERS[k].name}</span></button>`).join('')}</div></li>`;
     }
     h += '</ul></div>';
   }
@@ -307,14 +308,14 @@ function renderFriends() {
   h += `<div class="stack"><div class="card me">${avatarHTML(so.pub.avatar, 52)}<div style="flex:1;min-width:0"><div class="nm">${esc(so.pub.nickname)}</div><div class="sub">내 친구 코드 <span class="code">${esc(so.pub.code)}</span></div></div>
     <div style="display:flex;flex-direction:column;gap:6px"><button class="btn ghost sm" data-act="copyCode">코드 복사</button><button class="btn ghost sm" data-act="editProfile">편집</button></div></div>`;
   if (U.addOpen) h += `<div class="card stack"><div class="lbl b">친구 추가</div><div class="inline-add"><input id="codeinput" placeholder="친구 코드 (예: MONG-7K2Q)" autocomplete="off" autocapitalize="characters" enterkeyhint="send"><button class="btn sm" data-act="sendReq"${U.busy ? ' disabled' : ''}>요청</button></div><div class="hint">친구는 최대 3명까지예요. 친구가 요청을 수락하면 서로의 ‘친구 공개’ 할 일이 보여요.</div></div>`;
-  if (so.incoming.length) h += `<div class="card stack"><div class="lbl b">받은 친구 요청</div>${so.incoming.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 32)}${esc(fprof(u).nickname)}</span><span style="display:flex;gap:6px"><button class="btn ghost sm" data-act="decline" data-id="${u}">거절</button><button class="btn sm" data-act="accept" data-id="${u}"${so.friends.length >= 3 ? ' disabled' : ''}>수락</button></span></div>`).join('')}</div>`;
+  if (so.incoming.length) h += `<div class="card stack"><div class="lbl b">받은 친구 요청</div>${so.incoming.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 32)}${esc(fprof(u).nickname)}</span><span style="display:flex;gap:6px"><button class="btn ghost sm" data-act="decline" data-id="${esc(u)}">거절</button><button class="btn sm" data-act="accept" data-id="${esc(u)}"${so.friends.length >= 3 ? ' disabled' : ''}>수락</button></span></div>`).join('')}</div>`;
   if (so.friends.length) {
     const f = so.friends.includes(U.friend) ? U.friend : so.friends[0];
-    h += `<div class="friends">${so.friends.map(u => `<button class="fr${u === f ? ' on' : ''}" data-act="friend" data-id="${u}">${avatarHTML(fprof(u).avatar, 52)}<span>${esc(fprof(u).nickname)}</span></button>`).join('')}</div>`;
+    h += `<div class="friends">${so.friends.map(u => `<button class="fr${u === f ? ' on' : ''}" data-act="friend" data-id="${esc(u)}">${avatarHTML(fprof(u).avatar, 52)}<span>${esc(fprof(u).nickname)}</span></button>`).join('')}</div>`;
     h += friendDay(f);
   } else if (!so.incoming.length) h += `<div class="card"><div class="sub">아직 친구가 없어요. 내 친구 코드를 알려주거나, 친구의 코드로 요청해 보세요.</div></div>`;
-  if (so.outgoing.length) h += `<div class="card stack"><div class="lbl b">보낸 요청</div>${so.outgoing.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)} <span class="sub">수락 기다리는 중</span></span><button class="btn ghost sm" data-act="cancelReq" data-id="${u}">취소</button></div>`).join('')}</div>`;
-  if (so.friends.length) h += `<div class="card stack"><div class="lbl b">친구 관리</div>${so.friends.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)}</span><button class="xbtn${armed('unf:' + u) ? ' warn' : ''}" data-act="unfriend" data-id="${u}" style="font-size:12px">${armed('unf:' + u) ? '정말 끊기' : '친구 끊기'}</button></div>`).join('')}</div>`;
+  if (so.outgoing.length) h += `<div class="card stack"><div class="lbl b">보낸 요청</div>${so.outgoing.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)} <span class="sub">수락 기다리는 중</span></span><button class="btn ghost sm" data-act="cancelReq" data-id="${esc(u)}">취소</button></div>`).join('')}</div>`;
+  if (so.friends.length) h += `<div class="card stack"><div class="lbl b">친구 관리</div>${so.friends.map(u => `<div class="row"><span style="display:flex;gap:10px;align-items:center">${avatarHTML(fprof(u).avatar, 28)}${esc(fprof(u).nickname)}</span><button class="xbtn${armed('unf:' + u) ? ' warn' : ''}" data-act="unfriend" data-id="${esc(u)}" style="font-size:12px">${armed('unf:' + u) ? '정말 끊기' : '친구 끊기'}</button></div>`).join('')}</div>`;
   return h + '</div>';
 }
 async function sendRequest() {
@@ -360,7 +361,7 @@ function webSide() {
   return `<div class="brand"><span class="logo"></span>몽글 투두</div>
     <nav class="snav">${NAV.map(([id, l, ic]) => `<button class="${U.tab === id ? 'on' : ''}" data-tab="${id}">${ic}${l}${navBadge(id)}</button>`).join('')}</nav>
     <div class="minical"><div class="hd">${monthNav('month')}</div><div class="cal">${calCells(k, 'month')}</div></div>
-    <div><div class="slabel">오늘 남은 할 일</div>${P().cats.map(c => `<div class="scat" style="--c:var(--${c.color})"><span class="dot"></span>${esc(c.name)}<span class="cnt">${todosOn(TK).filter(t => t.cat === c.id && !t.done).length}</span></div>`).join('')}</div>`;
+    <div><div class="slabel">오늘 남은 할 일</div>${P().cats.map(c => `<div class="scat" style="--c:var(--${cc(c.color)})"><span class="dot"></span>${esc(c.name)}<span class="cnt">${todosOn(TK).filter(t => t.cat === c.id && !t.done).length}</span></div>`).join('')}</div>`;
 }
 function webMain() {
   const k = U.selected;
@@ -368,7 +369,7 @@ function webMain() {
   return `${errBar()}${ddayStrip()}<div class="whd"><h2>${fmtDay(k)}</h2>${k !== todayKey() ? '<button class="btn ghost sm" data-act="today">오늘로</button>' : ''}
     <div class="month" style="font-size:15px"><button class="navbtn" data-act="nav" data-view="week" data-d="-1" aria-label="지난주">${I.left}</button><button class="navbtn" data-act="nav" data-view="week" data-d="1" aria-label="다음 주">${I.right}</button></div></div>
     <div class="cal big">${calCells(k, 'week')}</div>${newRxCard()}
-    <div class="wcats">${P().cats.map(c => `<div class="wcat" style="--c:var(--${c.color})">${catBlock(c, k)}</div>`).join('')}${orphanBlock(k) ? `<div class="wcat">${orphanBlock(k)}</div>` : ''}</div>${somedayBlock()}`;
+    <div class="wcats">${P().cats.map(c => `<div class="wcat" style="--c:var(--${cc(c.color)})">${catBlock(c, k)}</div>`).join('')}${orphanBlock(k) ? `<div class="wcat">${orphanBlock(k)}</div>` : ''}</div>${somedayBlock()}`;
 }
 function webRight() {
   const k = U.selected, a = todosOn(k), dn = a.filter(t => t.done).length, p = a.length ? dn / a.length : 0, C = 2 * Math.PI * 46;
@@ -390,7 +391,7 @@ function sheetHTML() {
   if (U.ddsheet) {
     const ds = [...P().ddays].sort((a, b) => a.date.localeCompare(b.date));
     return wrap('D-day 관리', `<h3 class="title" style="margin:0">D-day</h3>
-      ${ds.map(x => `<div class="plan-i"><button class="pin${x.pin ? ' on' : ''}" data-act="pin" data-id="${x.id}" aria-label="상단 고정">★</button><span class="nm">${esc(x.name)}<br><span class="sub">${fmtDay(x.date)}</span></span><span class="dpill">${ddLabel(x.date)}</span><button class="xbtn${armed('dd:' + x.id) ? ' warn' : ''}" data-act="ddel" data-id="${x.id}" aria-label="삭제">${armed('dd:' + x.id) ? '삭제' : '×'}</button></div>`).join('') || '<div class="sub">아직 D-day가 없어요</div>'}
+      ${ds.map(x => `<div class="plan-i"><button class="pin${x.pin ? ' on' : ''}" data-act="pin" data-id="${esc(x.id)}" aria-label="상단 고정">★</button><span class="nm">${esc(x.name)}<br><span class="sub">${fmtDay(x.date)}</span></span><span class="dpill">${ddLabel(x.date)}</span><button class="xbtn${armed('dd:' + x.id) ? ' warn' : ''}" data-act="ddel" data-id="${esc(x.id)}" aria-label="삭제">${armed('dd:' + x.id) ? '삭제' : '×'}</button></div>`).join('') || '<div class="sub">아직 D-day가 없어요</div>'}
       <div class="inline-add" style="flex-wrap:wrap"><input id="ddname" placeholder="D-day 이름" autocomplete="off" enterkeyhint="done"><input type="date" class="finput" id="dddate" value="${addKey(todayKey(), 30)}"><button class="btn sm" data-act="ddadd">추가</button></div>
       <div class="hint">★ 를 켠 D-day가 할 일 화면 맨 위에 보여요.</div>
       <div class="sheetfoot" style="justify-content:flex-end"><button class="btn sm" data-act="done">완료</button></div>`);
@@ -402,7 +403,7 @@ function sheetHTML() {
   const q = [[0, '오늘'], [1, '내일'], [7, '다음 주']];
   return wrap('할 일 메뉴', `
     <input class="sheettitle" id="sheettext" value="${esc(t.text)}" aria-label="할 일 이름" autocomplete="off" enterkeyhint="done">
-    <div class="sf"><span class="slbl">${I.tag}카테고리</span><div class="quick">${P().cats.map(x => `<button class="qb${x.id === t.cat ? ' on' : ''}" style="--c:var(--${x.color})" data-act="sheetcat" data-v="${x.id}"><span class="chip sm" style="border:0;background:none;padding:0;gap:5px"><span class="dot"></span>${esc(x.name)}</span></button>`).join('')}</div></div>
+    <div class="sf"><span class="slbl">${I.tag}카테고리</span><div class="quick">${P().cats.map(x => `<button class="qb${x.id === t.cat ? ' on' : ''}" style="--c:var(--${cc(x.color)})" data-act="sheetcat" data-v="${x.id}"><span class="chip sm" style="border:0;background:none;padding:0;gap:5px"><span class="dot"></span>${esc(x.name)}</span></button>`).join('')}</div></div>
     <div class="sf"><span class="slbl">${I.cal}날짜 · ${t.date ? fmtDay(t.date) : '언젠가'}</span>
       <div class="quick">${q.map(([v, l]) => `<button class="qb${t.date === addKey(TK, v) ? ' on' : ''}" data-act="moveto" data-v="${v}">${l}</button>`).join('')}
       <input type="date" class="finput" id="sheetdate" value="${t.date}" aria-label="날짜 직접 선택"><button class="qb${t.date ? '' : ' on'}" data-act="tosomeday">언젠가</button></div></div>
@@ -410,8 +411,8 @@ function sheetHTML() {
       <div class="quick"><input type="time" class="finput" id="sheettime" value="${t.time || ''}">${t.time ? '<button class="qb" data-act="notime">알림 끄기</button>' : ''}</div></div>
     <div class="sf"><span class="slbl">${I.repeat}반복</span><div class="quick">${REPEATS.map(([v, l]) => `<button class="qb${(r ? r.rule : '') === v ? ' on' : ''}" data-act="repeat" data-v="${v}">${l}</button>`).join('')}</div>
       ${r ? '<span class="hint">이름·시간을 바꾸면 앞으로의 반복에도 같이 바뀌어요.</span>' : ''}</div>` : ''}
-    <div class="sf" style="--c:var(--${c.color})"><span class="slbl">${I.list}하위 할 일</span>
-      <ul class="todos" style="margin:0">${(t.subs || []).map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${t.id}" data-s="${s.id}" aria-label="하위 할 일 완료">${I.checkW}</button><span style="flex:1">${esc(s.text)}</span><button class="xbtn" data-act="subdel" data-s="${s.id}" aria-label="하위 할 일 삭제">×</button></li>`).join('')}</ul>
+    <div class="sf" style="--c:var(--${cc(c.color)})"><span class="slbl">${I.list}하위 할 일</span>
+      <ul class="todos" style="margin:0">${(t.subs || []).map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${esc(t.id)}" data-s="${esc(s.id)}" aria-label="하위 할 일 완료">${I.checkW}</button><span style="flex:1">${esc(s.text)}</span><button class="xbtn" data-act="subdel" data-s="${esc(s.id)}" aria-label="하위 할 일 삭제">×</button></li>`).join('')}</ul>
       <div class="subadd"><span class="chk sm" style="opacity:.4"></span><input id="subinput" placeholder="하위 할 일 추가 후 Enter" autocomplete="off" enterkeyhint="done"></div></div>
     <div class="sheetfoot"><button class="btn danger sm" data-act="del">${armed('del:' + t.id) ? '한 번 더 누르면 삭제' : '삭제'}</button><button class="btn sm" data-act="done">완료</button></div>`);
 }

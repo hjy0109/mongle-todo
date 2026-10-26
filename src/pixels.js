@@ -202,7 +202,10 @@ function draw(grid, pal, n) {
   grid.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') r += '<rect x="' + x + '" y="' + y + '" width="1.02" height="1.02" fill="' + pal[ch] + '"/>'; }));
   return '<svg viewBox="0 0 ' + n + ' ' + n + '" shape-rendering="crispEdges" aria-hidden="true">' + r + '</svg>';
 }
-export function avatarSvg(k) { const a = AVATARS[k] || AVATARS.rabbit; return (cache['a' + k] ||= draw(a.g, AP, 16)); }
-export function stickerSvg(k) { const s = STICKERS[k] || STICKERS.heart; return (cache['s' + k] ||= draw(s.g, SP, 12)); }
-export const avatarHTML = (k, size, label = '') => '<span class="av" style="width:' + size + 'px;height:' + size + 'px;background:' + (AVATARS[k] || AVATARS.rabbit).bg + '"' + (label ? ' title="' + label + '"' : '') + '>' + avatarSvg(k) + '</span>';
-export const stickerHTML = (k, size) => '<span class="stk" style="width:' + size + 'px;height:' + size + 'px" title="' + ((STICKERS[k] || {}).name || '') + '">' + stickerSvg(k) + '</span>';
+const own = (o, k) => (typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : null);
+export const avatarKey = k => (own(AVATARS, k) ? k : 'rabbit');
+export const stickerKey = k => (own(STICKERS, k) ? k : 'heart');
+export function avatarSvg(k) { k = avatarKey(k); const a = AVATARS[k]; return (cache['a' + k] ||= draw(a.g, AP, 16)); }
+export function stickerSvg(k) { k = stickerKey(k); const s = STICKERS[k]; return (cache['s' + k] ||= draw(s.g, SP, 12)); }
+export const avatarHTML = (k, size, label = '') => (k = avatarKey(k), '<span class="av" style="width:' + size + 'px;height:' + size + 'px;background:' + AVATARS[k].bg + '"' + (label ? ' title="' + label + '"' : '') + '>' + avatarSvg(k) + '</span>');
+export const stickerHTML = (k, size) => (k = stickerKey(k), '<span class="stk" style="width:' + size + 'px;height:' + size + 'px" title="' + STICKERS[k].name + '">' + stickerSvg(k) + '</span>');
