@@ -400,3 +400,11 @@ html,body,#app{overflow-x:hidden;max-width:100%}
 .fab{position:absolute;right:16px;bottom:calc(var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)) + 16px);box-shadow:0 10px 24px -10px rgba(70,50,120,.6);padding:12px 18px;font-size:14px;z-index:2}
 .copyprev{position:absolute;left:12px;right:12px;bottom:calc(var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)) + 12px);z-index:3;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .copyta{width:100%;height:min(45vh,360px);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.6;background:var(--surface-2);resize:none}
+
+/* inline sub-task editing */
+body{touch-action:manipulation}
+.subtx{cursor:text;-webkit-user-select:none;user-select:none}
+.subedit{flex:1;min-width:0;border:0;border-bottom:1.5px solid var(--accent);background:transparent;padding:2px 0;font-size:13px}
+.subedit:focus{outline:none}
+.subedit.inline{border-bottom:1px dashed transparent;font-size:14px}
+.subedit.inline:focus{border-bottom-color:var(--accent)}

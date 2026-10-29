@@ -89,7 +89,7 @@ function todoRow(t) {
   const rx = Object.values(S.social.reactions).filter(r => r.todoId === t.id && S.social.friends.includes(r.from));
   if (rx.length) h += `<span class="rx">${rx.map(r => `<span class="rxp${r.seen ? '' : ' new'}" title="${esc(fprof(r.from).nickname)}">${avatarHTML(fprof(r.from).avatar, 18)}${stickerHTML(r.sticker, 16)}</span>`).join('')}</span>`;
   h += `</div><button class="more" data-act="more" data-id="${esc(t.id)}" aria-label="할 일 메뉴">${I.dots}</button></li>`;
-  if ((t.subs || []).length && !t.done) h += `<li><ul class="subs">${t.subs.map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${esc(t.id)}" data-s="${esc(s.id)}" aria-label="하위 할 일 완료">${I.checkW}</button><span>${esc(s.text)}</span></li>`).join('')}</ul></li>`;
+  if ((t.subs || []).length && !t.done) h += `<li><ul class="subs">${t.subs.map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${esc(t.id)}" data-s="${esc(s.id)}" aria-label="하위 할 일 완료">${I.checkW}</button>${U.subEdit === t.id + '|' + s.id ? `<input class="subedit" id="subedit-${esc(t.id)}-${esc(s.id)}" data-tid="${esc(t.id)}" data-sid="${esc(s.id)}" value="${esc(s.text)}" enterkeyhint="done" aria-label="하위 할 일 수정">` : `<span class="subtx" data-tid="${esc(t.id)}" data-sid="${esc(s.id)}" title="두 번 눌러 수정">${esc(s.text)}</span>`}</li>`).join('')}</ul></li>`;
   return h;
 }
 function catBlock(c, k) {
@@ -476,7 +476,7 @@ function sheetHTML() {
     <div class="sf"><span class="slbl">${I.repeat}반복</span><div class="quick">${REPEATS.map(([v, l]) => `<button class="qb${(r ? r.rule : '') === v ? ' on' : ''}" data-act="repeat" data-v="${v}">${l}</button>`).join('')}</div>
       ${r ? '<span class="hint">이름·시간을 바꾸면 앞으로의 반복에도 같이 바뀌어요.</span>' : ''}</div>` : ''}
     <div class="sf" style="--c:var(--${cc(c.color)})"><span class="slbl">${I.list}하위 할 일</span>
-      <ul class="todos" style="margin:0">${(t.subs || []).map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${esc(t.id)}" data-s="${esc(s.id)}" aria-label="하위 할 일 완료">${I.checkW}</button><span style="flex:1">${esc(s.text)}</span><button class="xbtn" data-act="subdel" data-s="${esc(s.id)}" aria-label="하위 할 일 삭제">×</button></li>`).join('')}</ul>
+      <ul class="todos" style="margin:0">${(t.subs || []).map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${esc(t.id)}" data-s="${esc(s.id)}" aria-label="하위 할 일 완료">${I.checkW}</button><input class="subedit inline" id="subedit-${esc(t.id)}-${esc(s.id)}" data-tid="${esc(t.id)}" data-sid="${esc(s.id)}" value="${esc(s.text)}" enterkeyhint="done" aria-label="하위 할 일 수정"><button class="xbtn" data-act="subdel" data-s="${esc(s.id)}" aria-label="하위 할 일 삭제">×</button></li>`).join('')}</ul>
       <div class="subadd"><span class="chk sm" style="opacity:.4"></span><input id="subinput" placeholder="하위 할 일 추가 후 Enter" autocomplete="off" enterkeyhint="done"></div></div>
     <div class="sheetfoot"><button class="btn danger sm" data-act="del">${armed('del:' + t.id) ? '한 번 더 누르면 삭제' : '삭제'}</button><button class="btn sm" data-act="done">완료</button></div>`);
 }
@@ -531,6 +531,7 @@ export function renderAll() {
     }
   }
   for (const id of Object.keys(drafts)) { const el = $(id); if (!el) delete drafts[id]; else if (el.value !== drafts[id]) el.value = drafts[id]; }
+  if (U.focusSub) { const m = $(U.focusSub); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusSub = null; }
   if (U.focusMemo) { const m = $('jr-ta'); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusMemo = null; }
   if (U.focusAdd) { const ai = $('addinput'); if (ai) { ai.focus({ preventScroll: true }); U.focusAdd = false; } }
 }
@@ -600,7 +601,23 @@ async function doRestore(file) {
   U.busy = false; requestRender();
 }
 
+function saveSubEdit(el) {
+  const t = S.todos[el.dataset.tid]; if (!t) return;
+  const v = el.value.trim(), s0 = (t.subs || []).find(x => x.id === el.dataset.sid);
+  clearDraft(el.id);
+  if (!s0) return;
+  if (!v) { el.value = s0.text; return; }
+  if (v !== s0.text) putTodo({ ...t, subs: t.subs.map(x => x.id === s0.id ? { ...x, text: v } : x) });
+}
 export function bindEvents(hooks) {
+  // double tap / double click on a sub-task opens inline editing (own timing so it works in every WebView)
+  let lastTap = { k: '', t: 0 };
+  const startSubEdit = sp => { U.subEdit = sp.dataset.tid + '|' + sp.dataset.sid; U.focusSub = 'subedit-' + sp.dataset.tid + '-' + sp.dataset.sid; requestRender(); };
+  document.addEventListener('click', e => {
+    const sp = e.target.closest('.subtx'); if (!sp) return;
+    const k = sp.dataset.tid + '|' + sp.dataset.sid, now = Date.now();
+    if (lastTap.k === k && now - lastTap.t < 400) { lastTap = { k: '', t: 0 }; startSubEdit(sp); } else lastTap = { k, t: now };
+  });
   document.addEventListener('click', e => {
     const tb = e.target.closest('[data-tab]');
     if (tb) { if (U.journal) { flushJournal(); U.journal = null; U.jEdit = null; } U.addOpen = false; U.manageOpen = false; U.tab = tb.dataset.tab; U.adding = null; U.sheet = null; U.ddsheet = false; U.arm = null; U.gardenPick = false; const sc = $('scr') || $('wmain'); if (sc) sc.scrollTop = 0; if (U.tab === 'set') refreshNotif(); requestRender(); return; }
@@ -739,11 +756,13 @@ export function bindEvents(hooks) {
     else if (id === 'habitinput' && e.key === 'Enter') addHabit();
     else if (id === 'ddname' && e.key === 'Enter') { addDday(); requestRender(); }
     else if (id === 'codeinput' && e.key === 'Enter') sendRequest();
+    else if (e.target.classList.contains('subedit')) { e.preventDefault(); if (e.key === 'Escape') { const t = S.todos[e.target.dataset.tid]; const s0 = t?.subs?.find(x => x.id === e.target.dataset.sid); if (s0) e.target.value = s0.text; } e.target.blur(); }
     else if (e.key === 'Enter' && (id === 'sheettext' || e.target.classList.contains('cname') || e.target.classList.contains('hname'))) e.target.blur();
     else if (e.key === 'Escape' && (U.sheet || U.ddsheet)) { U.sheet = null; U.ddsheet = false; requestRender(); }
   });
 
   document.addEventListener('focusout', e => {
+    if (e.target.classList?.contains('subedit') && !e.target.classList.contains('inline')) { const el = e.target; setTimeout(() => { saveSubEdit(el); if (U.subEdit) { U.subEdit = null; requestRender(); } }, 0); return; }
     if (e.target.id !== 'addinput') return;
     const v = e.target.value.trim(), cat = U.adding;
     setTimeout(() => {
@@ -762,6 +781,7 @@ export function bindEvents(hooks) {
   document.addEventListener('change', e => {
     const id = e.target.id, v = e.target.value;
     if (id === 'sheettext' || e.target.classList.contains('cname') || e.target.classList.contains('hname')) clearDraft(id);
+    if (e.target.classList.contains('subedit')) { saveSubEdit(e.target); return; }
     const t = S.todos[U.sheet];
     if (id === 'sheettime' && t) { updateTodo(t.id, { time: v }, { future: true }); if (v) toast(`${T(v)}에 알려드릴게요`); }
     else if (id === 'sheetdate' && t && v) { U.sheet = moveTodo(t.id, v) || t.id; toast(`${fmtDay(v)}로 옮겼어요`); }
