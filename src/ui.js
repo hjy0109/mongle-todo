@@ -95,7 +95,7 @@ function todoRow(t) {
 function catBlock(c, k) {
   const items = todosOn(k).filter(t => t.cat === c.id);
   const pub = S.backend.social?.enabled && (P().share || []).includes(c.id);
-  let h = `<button class="chip" data-act="add" data-cat="${esc(c.id)}"><span class="dot"></span>${esc(c.name)}<span class="plus">+</span></button>${pub ? ' <span class="pubtag">친구 공개</span>' : ''}<ul class="todos">`;
+  let h = `<button class="chip" data-act="add" data-cat="${esc(c.id)}"><span class="dot"></span>${esc(c.name)}<span class="plus">+</span></button>${pub ? ' <span class="pubtag">친구 공개</span>' : ''}<ul class="todos" data-cat="${esc(c.id)}" data-date="${esc(k)}">`;
   h += items.map(todoRow).join('');
   if (U.adding === c.id) h += `<li class="addrow"><span class="chk"></span><input id="addinput" placeholder="할 일 입력 후 Enter" autocomplete="off" enterkeyhint="done"></li>`;
   else if (!items.length) h += '<li class="empty-hint">+ 를 눌러 할 일을 추가해요</li>';
@@ -500,6 +500,7 @@ const clearDraft = (...ids) => ids.forEach(i => delete drafts[i]);
 let layout = null;
 const root = () => document.getElementById('app');
 export function renderAll() {
+  if (U.dragging) return;
   const want = !S.authReady ? 'splash' : !S.user ? 'login' : !S.synced && !Object.keys(S.todos).length ? 'splash' : (innerWidth >= 960 ? 'web' : 'phone');
   const ae = document.activeElement, focusId = ae && ae.id && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') ? ae.id : null;
   const sel = focusId ? [ae.selectionStart, ae.selectionEnd, ae.value] : null;
@@ -609,7 +610,91 @@ function saveSubEdit(el) {
   if (!v) { el.value = s0.text; return; }
   if (v !== s0.text) putTodo({ ...t, subs: t.subs.map(x => x.id === s0.id ? { ...x, text: v } : x) });
 }
+
+/* ---------------- drag to reorder (long-press on phones, drag with mouse) ---------------- */
+function bindDrag() {
+  let d = null;
+  const scroller = () => $('scr') || $('wmain');
+  const lists = () => [...document.querySelectorAll('ul.todos[data-cat]')];
+  function cleanup() {
+    if (!d) return;
+    clearTimeout(d.timer);
+    d.ghost?.remove(); d.line?.remove(); d.row?.classList.remove('dragging'); d.row?.classList.remove('pressing');
+    cancelAnimationFrame(d.raf);
+    const wasActive = d.active; d = null;
+    if (wasActive) { U.dragging = false; requestRender(); }
+  }
+  function start() {
+    if (!d || d.active) return;
+    d.active = true; U.dragging = true;
+    try { navigator.vibrate?.(12); } catch { /* not supported */ }
+    const r = d.row.getBoundingClientRect();
+    d.offY = d.y - r.top;
+    d.ghost = d.row.cloneNode(true); d.ghost.className = 'todo drag-ghost' + (d.row.classList.contains('done') ? ' done' : '');
+    d.ghost.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;--c:${getComputedStyle(d.row).getPropertyValue('--c')}`;
+    document.body.appendChild(d.ghost);
+    d.line = document.createElement('div'); d.line.className = 'drop-line'; document.body.appendChild(d.line);
+    d.row.classList.remove('pressing'); d.row.classList.add('dragging');
+    move(d.x, d.y);
+    const tick = () => { if (!d || !d.active) return; const sc = scroller(); if (sc) { const b = sc.getBoundingClientRect(); if (d.y < b.top + 50) sc.scrollTop -= 8; else if (d.y > b.bottom - 60) sc.scrollTop += 8; } target(); d.raf = requestAnimationFrame(tick); };
+    d.raf = requestAnimationFrame(tick);
+  }
+  function target() {
+    let best = null;
+    for (const ul of lists()) {
+      const box = ul.parentElement.getBoundingClientRect();
+      if (d.x >= box.left && d.x <= box.right && d.y >= box.top - 6 && d.y <= box.bottom + 6) { best = ul; break; }
+    }
+    if (!best) { d.target = null; d.line.style.display = 'none'; return; }
+    const rows = [...best.querySelectorAll(':scope > li.todo')].filter(li => li !== d.row);
+    let before = null;
+    for (const li of rows) { const r = li.getBoundingClientRect(); if (d.y < r.top + r.height / 2) { before = li; break; } }
+    const ur = best.getBoundingClientRect();
+    let y;
+    if (before) y = before.getBoundingClientRect().top - 2;
+    else if (rows.length) { const last = rows[rows.length - 1]; let n = last.nextElementSibling; const lr = (n && !n.classList.contains('todo') && !n.classList.contains('addrow') && !n.classList.contains('empty-hint') ? n : last).getBoundingClientRect(); y = lr.bottom + 1; }
+    else y = ur.top + 4;
+    d.line.style.cssText = `display:block;left:${ur.left}px;width:${ur.width}px;top:${y}px`;
+    d.target = { cat: best.dataset.cat, date: best.dataset.date, beforeId: before ? before.querySelector('[data-act="toggle"]')?.dataset.id : null };
+  }
+  function move(x, y) { d.x = x; d.y = y; if (d.ghost) d.ghost.style.top = (y - d.offY) + 'px'; }
+  function drop() {
+    const tg = d.target, id = d.id; cleanup();
+    if (!tg) return;
+    const t = S.todos[id]; if (!t) return;
+    const sibs = todosOn(tg.date).filter(x => x.cat === tg.cat && x.id !== id);
+    let idx = tg.beforeId ? sibs.findIndex(x => x.id === tg.beforeId) : sibs.length;
+    if (idx < 0) idx = sibs.length;
+    const seq = [...sibs.slice(0, idx), { ...t, cat: tg.cat }, ...sibs.slice(idx)];
+    seq.forEach((x, i) => { const order = (i + 1) * 1000; if (x.id === id) { if (x.order !== order || t.cat !== tg.cat) putTodo({ ...t, cat: tg.cat, order }); } else if (x.order !== order) putTodo({ ...x, order }); });
+    if (t.cat !== tg.cat) toast(`‘${catOf(tg.cat).name}’로 옮겼어요`);
+  }
+  document.addEventListener('pointerdown', e => {
+    if (d || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const row = e.target.closest('ul.todos[data-cat] > li.todo');
+    if (!row || e.target.closest('button, input, textarea, .subtx')) return;
+    const tg = row.querySelector('[data-act="toggle"]'); if (!tg) return;
+    d = { id: tg.dataset.id, row, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, touch: e.pointerType !== 'mouse', active: false };
+    if (d.touch) { row.classList.add('pressing'); d.timer = setTimeout(start, 380); }
+  });
+  document.addEventListener('pointermove', e => {
+    if (!d) return;
+    const dist = Math.hypot(e.clientX - d.sx, e.clientY - d.sy);
+    if (!d.active) {
+      if (d.touch) { if (dist > 8) cleanup(); return; }
+      if (dist > 6) { d.x = e.clientX; d.y = e.clientY; start(); }
+      return;
+    }
+    e.preventDefault(); move(e.clientX, e.clientY);
+  });
+  document.addEventListener('touchmove', e => { if (d && d.active) e.preventDefault(); }, { passive: false });
+  document.addEventListener('pointerup', () => { if (!d) return; if (d.active) drop(); else cleanup(); });
+  document.addEventListener('pointercancel', () => cleanup());
+  document.addEventListener('contextmenu', e => { if (d || e.target.closest('ul.todos[data-cat] > li.todo')) e.preventDefault(); });
+  addEventListener('blur', () => cleanup());
+}
 export function bindEvents(hooks) {
+  bindDrag();
   // double tap / double click on a sub-task opens inline editing (own timing so it works in every WebView)
   let lastTap = { k: '', t: 0 };
   const startSubEdit = sp => { U.subEdit = sp.dataset.tid + '|' + sp.dataset.sid; U.focusSub = 'subedit-' + sp.dataset.tid + '-' + sp.dataset.sid; requestRender(); };

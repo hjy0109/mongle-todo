@@ -410,3 +410,11 @@ body{touch-action:manipulation}
 .subedit.inline:focus{border-bottom-color:var(--accent)}
 
 .subs.pdone{opacity:.75}
+
+/* ---------- drag to reorder ---------- */
+ul.todos[data-cat] > li.todo{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:background .15s,transform .15s}
+ul.todos[data-cat] > li.todo .tx{-webkit-user-select:none;user-select:none}
+li.todo.pressing{background:var(--accent-soft);transform:scale(.985)}
+li.todo.dragging{opacity:.35}
+.drag-ghost{position:fixed;z-index:60;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 10px;box-shadow:0 14px 30px -10px rgba(40,20,80,.45);transform:rotate(-1.5deg);list-style:none;display:flex;align-items:center;gap:10px}
+.drop-line{position:fixed;z-index:59;height:3px;border-radius:3px;background:var(--accent);pointer-events:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
