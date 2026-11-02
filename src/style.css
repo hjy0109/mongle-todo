@@ -418,3 +418,9 @@ li.todo.pressing{background:var(--accent-soft);transform:scale(.985)}
 li.todo.dragging{opacity:.35}
 .drag-ghost{position:fixed;z-index:60;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 10px;box-shadow:0 14px 30px -10px rgba(40,20,80,.45);transform:rotate(-1.5deg);list-style:none;display:flex;align-items:center;gap:10px}
 .drop-line{position:fixed;z-index:59;height:3px;border-radius:3px;background:var(--accent);pointer-events:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+
+ul.subs[data-tid] > li.sub-i{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;border-radius:8px;transition:background .15s,transform .15s}
+li.sub-i.pressing{background:var(--accent-soft);transform:scale(.985)}
+li.sub-i.dragging{opacity:.35}
+.sub-i.drag-ghost{font-size:13px;padding:4px 10px}
+.subdel{flex:none;font-size:12px;font-weight:700;color:var(--c7);padding:3px 8px;border-radius:8px;background:color-mix(in srgb,var(--c7) 12%,var(--surface))}

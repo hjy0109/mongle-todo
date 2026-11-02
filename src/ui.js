@@ -89,7 +89,7 @@ function todoRow(t) {
   const rx = Object.values(S.social.reactions).filter(r => r.todoId === t.id && S.social.friends.includes(r.from));
   if (rx.length) h += `<span class="rx">${rx.map(r => `<span class="rxp${r.seen ? '' : ' new'}" title="${esc(fprof(r.from).nickname)}">${avatarHTML(fprof(r.from).avatar, 18)}${stickerHTML(r.sticker, 16)}</span>`).join('')}</span>`;
   h += `</div><button class="more" data-act="more" data-id="${esc(t.id)}" aria-label="할 일 메뉴">${I.dots}</button></li>`;
-  if ((t.subs || []).length) h += `<li><ul class="subs${t.done ? ' pdone' : ''}">${t.subs.map(s => `<li class="sub-i${s.done ? ' done' : ''}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${esc(t.id)}" data-s="${esc(s.id)}" aria-label="하위 할 일 완료">${I.checkW}</button>${U.subEdit === t.id + '|' + s.id ? `<input class="subedit" id="subedit-${esc(t.id)}-${esc(s.id)}" data-tid="${esc(t.id)}" data-sid="${esc(s.id)}" value="${esc(s.text)}" enterkeyhint="done" aria-label="하위 할 일 수정">` : `<span class="subtx" data-tid="${esc(t.id)}" data-sid="${esc(s.id)}" title="두 번 눌러 수정">${esc(s.text)}</span>`}</li>`).join('')}</ul></li>`;
+  if ((t.subs || []).length) h += `<li><ul class="subs${t.done ? ' pdone' : ''}" data-tid="${esc(t.id)}">${t.subs.map(s => `<li class="sub-i${s.done ? ' done' : ''}" data-sid="${esc(s.id)}"><button class="chk sm${s.done ? ' on' : ''}" data-act="subtoggle" data-id="${esc(t.id)}" data-s="${esc(s.id)}" aria-label="하위 할 일 완료">${I.checkW}</button>${U.subEdit === t.id + '|' + s.id ? `<input class="subedit" id="subedit-${esc(t.id)}-${esc(s.id)}" data-tid="${esc(t.id)}" data-sid="${esc(s.id)}" value="${esc(s.text)}" enterkeyhint="done" aria-label="하위 할 일 수정"><button class="subdel" data-act="subdelInline" data-id="${esc(t.id)}" data-s="${esc(s.id)}">삭제</button>` : `<span class="subtx" data-tid="${esc(t.id)}" data-sid="${esc(s.id)}" title="두 번 눌러 수정">${esc(s.text)}</span>`}</li>`).join('')}</ul></li>`;
   return h;
 }
 function catBlock(c, k) {
@@ -630,8 +630,8 @@ function bindDrag() {
     try { navigator.vibrate?.(12); } catch { /* not supported */ }
     const r = d.row.getBoundingClientRect();
     d.offY = d.y - r.top;
-    d.ghost = d.row.cloneNode(true); d.ghost.className = 'todo drag-ghost' + (d.row.classList.contains('done') ? ' done' : '');
-    d.ghost.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;--c:${getComputedStyle(d.row).getPropertyValue('--c')}`;
+    d.ghost = d.row.cloneNode(true); d.ghost.className = (d.kind === 'sub' ? 'sub-i' : 'todo') + ' drag-ghost' + (d.row.classList.contains('done') ? ' done' : '');
+    d.ghost.style.cssText = `left:${r.left}px;top:${r.top}px;width:${Math.max(r.width, 160)}px;--c:${getComputedStyle(d.row).getPropertyValue('--c')}`;
     document.body.appendChild(d.ghost);
     d.line = document.createElement('div'); d.line.className = 'drop-line'; document.body.appendChild(d.line);
     d.row.classList.remove('pressing'); d.row.classList.add('dragging');
@@ -640,6 +640,16 @@ function bindDrag() {
     d.raf = requestAnimationFrame(tick);
   }
   function target() {
+    if (d.kind === 'sub') {
+      const ul = d.row.parentElement, ur = ul.getBoundingClientRect();
+      const rows = [...ul.querySelectorAll(':scope > li.sub-i')].filter(li => li !== d.row);
+      let before = null;
+      for (const li of rows) { const r = li.getBoundingClientRect(); if (d.y < r.top + r.height / 2) { before = li; break; } }
+      const y = before ? before.getBoundingClientRect().top - 1 : (rows.length ? rows[rows.length - 1].getBoundingClientRect().bottom : ur.top);
+      d.line.style.cssText = `display:block;left:${ur.left}px;width:${ur.width}px;top:${y}px`;
+      d.target = { beforeSid: before ? before.dataset.sid : null };
+      return;
+    }
     let best = null;
     for (const ul of lists()) {
       const box = ul.parentElement.getBoundingClientRect();
@@ -659,6 +669,15 @@ function bindDrag() {
   }
   function move(x, y) { d.x = x; d.y = y; if (d.ghost) d.ghost.style.top = (y - d.offY) + 'px'; }
   function drop() {
+    if (d.kind === 'sub') {
+      const tg = d.target, tid = d.tid, sid = d.sid; cleanup();
+      const t = S.todos[tid]; if (!t || !tg) return;
+      const moved = t.subs.find(x => x.id === sid), rest = t.subs.filter(x => x.id !== sid);
+      let idx = tg.beforeSid ? rest.findIndex(x => x.id === tg.beforeSid) : rest.length; if (idx < 0) idx = rest.length;
+      const subs = [...rest.slice(0, idx), moved, ...rest.slice(idx)];
+      if (subs.some((x, i) => x.id !== t.subs[i].id)) putTodo({ ...t, subs });
+      return;
+    }
     const tg = d.target, id = d.id; cleanup();
     if (!tg) return;
     const t = S.todos[id]; if (!t) return;
@@ -670,11 +689,18 @@ function bindDrag() {
     if (t.cat !== tg.cat) toast(`‘${catOf(tg.cat).name}’로 옮겼어요`);
   }
   document.addEventListener('pointerdown', e => {
+    if (e.target.closest('[data-act="subdelInline"]')) { U.keepSubEdit = true; return; }
     if (d || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const srow = e.target.closest('ul.subs[data-tid] > li.sub-i');
+    if (srow && !e.target.closest('button, input') && srow.querySelector('.subtx')) {
+      d = { kind: 'sub', tid: srow.parentElement.dataset.tid, sid: srow.dataset.sid, row: srow, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, touch: e.pointerType !== 'mouse', active: false };
+      if (d.touch) { srow.classList.add('pressing'); d.timer = setTimeout(start, 380); }
+      return;
+    }
     const row = e.target.closest('ul.todos[data-cat] > li.todo');
     if (!row || e.target.closest('button, input, textarea, .subtx')) return;
     const tg = row.querySelector('[data-act="toggle"]'); if (!tg) return;
-    d = { id: tg.dataset.id, row, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, touch: e.pointerType !== 'mouse', active: false };
+    d = { kind: 'todo', id: tg.dataset.id, row, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, touch: e.pointerType !== 'mouse', active: false };
     if (d.touch) { row.classList.add('pressing'); d.timer = setTimeout(start, 380); }
   });
   document.addEventListener('pointermove', e => {
@@ -690,7 +716,7 @@ function bindDrag() {
   document.addEventListener('touchmove', e => { if (d && d.active) e.preventDefault(); }, { passive: false });
   document.addEventListener('pointerup', () => { if (!d) return; if (d.active) drop(); else cleanup(); });
   document.addEventListener('pointercancel', () => cleanup());
-  document.addEventListener('contextmenu', e => { if (d || e.target.closest('ul.todos[data-cat] > li.todo')) e.preventDefault(); });
+  document.addEventListener('contextmenu', e => { if (d || e.target.closest('ul.todos[data-cat] > li.todo, ul.subs[data-tid] > li.sub-i')) e.preventDefault(); });
   addEventListener('blur', () => cleanup());
 }
 export function bindEvents(hooks) {
@@ -720,6 +746,7 @@ export function bindEvents(hooks) {
       case 'today': selectDate(todayKey()); break;
       case 'toggle': toggleTodo(id); break;
       case 'subtoggle': { const t = S.todos[id]; if (t) putTodo({ ...t, subs: t.subs.map(s => s.id === el.dataset.s ? { ...s, done: !s.done } : s) }); break; }
+      case 'subdelInline': { U.keepSubEdit = false; const t = S.todos[id]; if (t) { putTodo({ ...t, subs: t.subs.filter(x => x.id !== el.dataset.s) }); toast('하위 할 일을 지웠어요'); } clearDraft('subedit-' + id + '-' + el.dataset.s); U.subEdit = null; break; }
       case 'subdel': { const t = sheetT(); if (t) putTodo({ ...t, subs: t.subs.filter(s => s.id !== el.dataset.s) }); break; }
       case 'more': U.sheet = id; U.ddsheet = false; break;
       case 'close': case 'done': U.sheet = null; U.ddsheet = false; break;
@@ -847,7 +874,7 @@ export function bindEvents(hooks) {
   });
 
   document.addEventListener('focusout', e => {
-    if (e.target.classList?.contains('subedit') && !e.target.classList.contains('inline')) { const el = e.target; setTimeout(() => { saveSubEdit(el); if (U.subEdit) { U.subEdit = null; requestRender(); } }, 0); return; }
+    if (e.target.classList?.contains('subedit') && !e.target.classList.contains('inline')) { const el = e.target; if (U.keepSubEdit) return; setTimeout(() => { if (U.keepSubEdit) return; saveSubEdit(el); if (U.subEdit) { U.subEdit = null; requestRender(); } }, 0); return; }
     if (e.target.id !== 'addinput') return;
     const v = e.target.value.trim(), cat = U.adding;
     setTimeout(() => {
