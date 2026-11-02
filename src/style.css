@@ -424,3 +424,17 @@ li.sub-i.pressing{background:var(--accent-soft);transform:scale(.985)}
 li.sub-i.dragging{opacity:.35}
 .sub-i.drag-ghost{font-size:13px;padding:4px 10px}
 .subdel{flex:none;font-size:12px;font-weight:700;color:var(--c7);padding:3px 8px;border-radius:8px;background:color-mix(in srgb,var(--c7) 12%,var(--surface))}
+
+/* ---------- calendar colors & holidays ---------- */
+:root{--sat:#3E7BDA;--red:#E8574A}
+@media (prefers-color-scheme: dark){:root{--sat:#7FA8F0;--red:#F0857A}}
+.wd.sat{color:var(--sat)}
+.wd.sun{color:var(--red)}
+.day .n.blue{color:var(--sat);font-weight:600}
+.day .n.red{color:var(--red);font-weight:600}
+.day.today .n{color:var(--surface)!important}
+.day.today .n.red{background:var(--red)}
+.day.today .n.blue{background:var(--sat)}
+.day .hn{font-size:9px;line-height:1.1;color:var(--red);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+.minical .day .hn,.small-cal .day .hn{display:none}
+.holtag{display:inline-block;margin-left:8px;font-size:12px;font-weight:700;color:var(--red);background:color-mix(in srgb,var(--red) 12%,var(--surface));border-radius:999px;padding:2px 9px;vertical-align:3px}

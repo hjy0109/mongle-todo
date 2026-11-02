@@ -1,5 +1,9 @@
 import { S, todosOn, index, render as requestRender, saveProfile, saveSettings, putDay, addTodo, toggleTodo, updateTodo, deleteTodo, moveTodo, setRepeat, toggleHabit, ensureRoutines, ensureLoaded, loadAllDays, later, putTodo, setShare, sharedCats, unseenReactions } from './store.js';
 import { AVATARS, STICKERS, avatarHTML, stickerHTML } from './pixels.js';
+import { holidayName } from './holidays.js';
+const shortHol = n => n.split(' · ')[0].replace(/^대체공휴일\(.*\)$/, '대체공휴일').replace(' 연휴', '');
+const dayClass = d => { const k = key(d), w = d.getDay(); return holidayName(k) || w === 0 ? ' red' : w === 6 ? ' blue' : ''; };
+const holTag = k => holidayName(k) ? `<span class="holtag">${esc(holidayName(k))}</span>` : '';
 import { key, fromKey, addDays, addKey, todayKey, WD, fmtDay, esc, uid, ddLabel, fmtT, pad, rnd } from './util.js';
 import { THEMES, GARDENS, COLORS, SHAPES, sprite, spriteInner, themeOf, gardenOf, gardenIdOf } from './themes.js';
 import { REPEATS, repName, habitsOn, isSpecial, habitStreak } from './logic.js';
@@ -61,11 +65,11 @@ function calCells(sel, view, interactive = true) {
     for (let i = 0; i < total; i++) { const x = addDays(start, i); cells.push({ d: x, out: x.getMonth() !== d.getMonth() }); }
   }
   let h = '';
-  for (let i = 0; i < 7; i++) { const w = (i + ws) % 7; h += `<div class="wd${w === 0 ? ' sun' : ''}">${WD[w]}</div>`; }
+  for (let i = 0; i < 7; i++) { const w = (i + ws) % 7; h += `<div class="wd${w === 0 ? ' sun' : w === 6 ? ' sat' : ''}">${WD[w]}</div>`; }
   for (const c of cells) {
     const k = key(c.d);
     const cls = ['day', k === TK ? 'today' : '', interactive && k === sel ? 'sel' : '', c.out ? 'out' : ''].join(' ');
-    h += `<button class="${cls}" data-act="sel" data-k="${k}" aria-label="${fmtDay(k)}"><span class="n">${c.d.getDate()}</span>${blob(k)}</button>`;
+    h += `<button class="${cls}" data-act="sel" data-k="${k}" aria-label="${fmtDay(k)}${holidayName(k) ? ' ' + esc(holidayName(k)) : ''}"><span class="n${dayClass(c.d)}">${c.d.getDate()}</span>${blob(k)}${holidayName(k) ? `<span class="hn">${esc(shortHol(holidayName(k)))}</span>` : ''}</button>`;
   }
   return h;
 }
@@ -125,7 +129,7 @@ function renderTodo() {
   let h = `${errBar()}${ddayStrip()}<div class="hd">${monthNav(U.view)}
     <div class="seg"><button class="${U.view === 'week' ? 'on' : ''}" data-act="view" data-v="week">주</button><button class="${U.view === 'month' ? 'on' : ''}" data-act="view" data-v="month">월</button></div></div>
     <div class="cal">${calCells(k, U.view)}</div>
-    <div class="dayhd"><h2>${fmtDay(k)}</h2>${k !== todayKey() ? '<button class="pill-tag" data-act="today">오늘로</button>' : ''}${moodBtn(k)}</div>
+    <div class="dayhd"><h2>${fmtDay(k)}${holTag(k)}</h2>${k !== todayKey() ? '<button class="pill-tag" data-act="today">오늘로</button>' : ''}${moodBtn(k)}</div>
     <input class="memo" id="memo" placeholder="한 줄 일기를 남겨보세요" value="${esc(S.days[k]?.memo || '')}" autocomplete="off">
     ${newRxCard()}<div class="cats">`;
   for (const c of P().cats) h += `<div style="--c:var(--${cc(c.color)})">${catBlock(c, k)}</div>`;
@@ -426,7 +430,7 @@ function webSide() {
 function webMain() {
   const k = U.selected;
   if (U.tab !== 'todo') return `<div class="inner">${U.tab === 'habit' ? renderHabit(true) : U.tab === 'friends' ? renderFriends() : renderSettings()}</div>`;
-  return `${errBar()}${ddayStrip()}<div class="whd"><h2>${fmtDay(k)}</h2>${k !== todayKey() ? '<button class="btn ghost sm" data-act="today">오늘로</button>' : ''}
+  return `${errBar()}${ddayStrip()}<div class="whd"><h2>${fmtDay(k)}${holTag(k)}</h2>${k !== todayKey() ? '<button class="btn ghost sm" data-act="today">오늘로</button>' : ''}
     <div class="month" style="font-size:15px"><button class="navbtn" data-act="nav" data-view="week" data-d="-1" aria-label="지난주">${I.left}</button><button class="navbtn" data-act="nav" data-view="week" data-d="1" aria-label="다음 주">${I.right}</button></div></div>
     <div class="cal big">${calCells(k, 'week')}</div>${newRxCard()}
     <div class="wcats">${P().cats.map(c => `<div class="wcat" style="--c:var(--${cc(c.color)})">${catBlock(c, k)}</div>`).join('')}${orphanBlock(k) ? `<div class="wcat">${orphanBlock(k)}</div>` : ''}</div>${somedayBlock()}`;
