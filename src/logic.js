@@ -1,6 +1,6 @@
 import { key, fromKey, addDays, addKey, todayKey, rnd, fmtT } from './util.js';
 
-export const REPEATS = [['', '안 함'], ['daily', '매일'], ['weekdays', '평일'], ['weekly', '매주']];
+export const REPEATS = [['', '안 함'], ['daily', '매일'], ['weekdays', '평일'], ['weekly', '매주'], ['monthly', '매달']];
 export const repName = r => (REPEATS.find(x => x[0] === r) || ['', ''])[1];
 
 export function buildIndex(todos) {
@@ -21,6 +21,11 @@ export function ruleMatches(r, k) {
   if (r.rule === 'daily') return true;
   if (r.rule === 'weekdays') return w > 0 && w < 6;
   if (r.rule === 'weekly') return w === fromKey(r.start).getDay();
+  if (r.rule === 'monthly') {
+    // same day of month as the start date; in shorter months use the last day (e.g. 31st -> 30th)
+    const sd = fromKey(r.start).getDate(), last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return d.getDate() === Math.min(sd, last);
+  }
   return false;
 }
 

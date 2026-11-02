@@ -557,7 +557,7 @@ export function banner(title, body) {
 /* ---------------- events ---------------- */
 function selectDate(k) {
   U.selected = k; U.adding = null;
-  if (k > todayKey()) ensureRoutines(todayKey(), k > addKey(todayKey(), 60) ? k : addKey(k, 7));
+  if (k > todayKey()) { const d = fromKey(k), eom = key(new Date(d.getFullYear(), d.getMonth() + 1, 0)); ensureRoutines(todayKey(), eom > addKey(k, 7) ? eom : addKey(k, 7)); }
   if (S.loadedFrom && k < S.loadedFrom) ensureLoaded(key(new Date(fromKey(k).getFullYear(), fromKey(k).getMonth() - 1, 1)));
 }
 function addHabit() {
