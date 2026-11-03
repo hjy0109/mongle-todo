@@ -1,5 +1,5 @@
 // 16x16 avatars and 12x12 reaction stickers drawn as pixel grids.
-const AP = {"o":"#3A3046","k":"#3A3046","w":"#FFFFFF","p":"#FFB3C7","c":"#FFC2D3","n":"#FF8FB1","g":"#8FD18A","m":"#4E9A55","s":"#D2AE74","S":"#8C6A3F","b":"#45507A","y":"#FFC24D","f":"#E9BC8B","E":"#A8774F","t":"#FF8FA3","N":"#3A3046","B":"#86BDEB","l":"#D4ECFA","q":"#C99D74","Q":"#EED6B8"};
+const AP = {"o":"#3A3046","k":"#3A3046","w":"#FFFFFF","p":"#FFB3C7","c":"#FFC2D3","n":"#FF8FB1","g":"#8FD18A","m":"#4E9A55","s":"#D2AE74","S":"#8C6A3F","b":"#45507A","y":"#FFC24D","f":"#E9BC8B","E":"#A8774F","t":"#FF8FA3","N":"#3A3046","B":"#86BDEB","D":"#5C9BD6","l":"#D4ECFA","q":"#C99D74","Q":"#EED6B8"};
 export const AVATARS = {
  "rabbit": {
   "name": "토끼",
@@ -93,21 +93,21 @@ export const AVATARS = {
   "name": "고래",
   "bg": "#DCEEFB",
   "g": [
-   "....l.l..l.l....",
-   ".....l.ll.l.....",
-   "......llll......",
-   ".......ll.......",
-   ".....oooooo.....",
-   "...ooBBBBBBoo...",
-   "..oBBBBBBBBBBo..",
-   ".oBBBBBBBBBBBBo.",
-   ".oBBkBBBBBBkBBo.",
-   "oBBBcBBBBBBcBBBo",
-   "oBBBBBoBBoBBBBBo",
-   "oBBBBBBooBBBBBBo",
-   "ollllllllllllllo",
-   ".ollllllllllllo.",
-   "..oooooooooooo..",
+   "..l..l..l.......",
+   "...l.l.l........",
+   "....lll....oo.oo",
+   ".....l....oDDoDo",
+   "...oooooo..oDDDo",
+   ".ooDDDDDDoo.oDBo",
+   "oDBBBBBBBBBooBo.",
+   "oBwkBBBBBBBBBBo.",
+   "oBkkBBBBBBBBBBo.",
+   "oBcBBBBBBBBBBo..",
+   "oolllllBBBBBBo..",
+   ".ollllllllBBo...",
+   "..ollllllllo....",
+   "...oooooooo.....",
+   "................",
    "................"
   ]
  },
