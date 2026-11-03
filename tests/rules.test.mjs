@@ -69,6 +69,7 @@ test('reactions: owner reads, marks seen, cannot rewrite', async () => {
 test('public profiles', async () => {
   await assertSucceeds(getDoc(doc(db('bob'), 'publicProfiles/alice')));
   await assertSucceeds(setDoc(doc(db('bob'), 'publicProfiles/bob'), { nickname: 'B', avatar: 'penguin', code: 'MONG-BBBB', sharedCats: [] }));
+  await assertSucceeds(updateDoc(doc(db('bob'), 'publicProfiles/bob'), { avatar: 'quokka' }));
   await assertFails(setDoc(doc(db('bob'), 'publicProfiles/alice'), { nickname: 'X' }, { merge: true }));
   await assertFails(setDoc(doc(db('bob'), 'publicProfiles/bob'), { nickname: 'B', admin: true }));
   await assertFails(setDoc(doc(db('bob'), 'publicProfiles/bob'), { nickname: 'B', avatar: '__proto__', code: 'MONG-BBBB', sharedCats: [] }));

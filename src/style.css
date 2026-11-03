@@ -324,7 +324,7 @@ input{min-width:0}
 .stpicker{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:6px;margin:2px 0 6px 34px;box-shadow:0 8px 20px -12px rgba(40,20,80,.35)}
 .stpicker button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:12px;font-size:10px;color:var(--muted)}
 .stpicker button.on{background:var(--accent-soft);color:var(--accent)}
-.avpick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.avpick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .avbtn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:16px;border:2px solid var(--line);font-size:12px}
 .avbtn.on{border-color:var(--accent);background:var(--accent-soft)}
 
@@ -343,7 +343,7 @@ input{min-width:0}
   .screen{padding-left:max(14px,var(--safe-area-inset-left,env(safe-area-inset-left,0px)));padding-right:max(14px,var(--safe-area-inset-right,env(safe-area-inset-right,0px)))}
   .card{padding:12px 13px}
   .themes{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .avpick{grid-template-columns:repeat(2,1fr)}
+  .avpick{grid-template-columns:repeat(3,1fr)}
   .stpicker{margin-left:0}
 }
 

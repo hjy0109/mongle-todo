@@ -54,7 +54,7 @@ service cloud.firestore {
       allow create, update: if signedIn() && me() == uid
         && request.resource.data.keys().hasOnly(['nickname', 'avatar', 'code', 'sharedCats'])
         && request.resource.data.nickname is string && request.resource.data.nickname.size() <= 20
-        && (!('avatar' in request.resource.data) || request.resource.data.avatar in ['rabbit', 'turtle', 'penguin', 'dog'])
+        && (!('avatar' in request.resource.data) || request.resource.data.avatar in ['rabbit', 'turtle', 'penguin', 'dog', 'whale', 'quokka'])
         && (!('code' in request.resource.data) || (request.resource.data.code is string && request.resource.data.code.size() <= 12))
         && (!('sharedCats' in request.resource.data) || (request.resource.data.sharedCats is list && request.resource.data.sharedCats.size() <= 30));
       allow delete: if signedIn() && me() == uid;
