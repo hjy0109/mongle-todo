@@ -406,6 +406,9 @@ body{touch-action:manipulation}
 .subtx{cursor:text;-webkit-user-select:none;user-select:none}
 .subedit{flex:1;min-width:0;border:0;border-bottom:1.5px solid var(--accent);background:transparent;padding:2px 0;font-size:13px}
 .subedit:focus{outline:none}
+.taskedit{width:100%;min-width:0;border:0;border-bottom:1.5px solid var(--accent);background:transparent;padding:1px 0;font-size:15px;color:inherit;font-family:inherit}
+.taskedit:focus{outline:none}
+.todo .tx[data-tid]{cursor:text}
 .subedit.inline{border-bottom:1px dashed transparent;font-size:14px}
 .subedit.inline:focus{border-bottom-color:var(--accent)}
 

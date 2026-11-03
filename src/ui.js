@@ -84,7 +84,7 @@ function ddayStrip() {
 }
 function todoRow(t) {
   const sd = (t.subs || []).filter(s => s.done).length;
-  let h = `<li class="todo${t.done ? ' done' : ''}"><button class="chk" data-act="toggle" data-id="${esc(t.id)}" aria-label="완료 표시">${I.checkW}</button><div class="txw"><span class="tx">${esc(t.text)}</span>`;
+  let h = `<li class="todo${t.done ? ' done' : ''}"><button class="chk" data-act="toggle" data-id="${esc(t.id)}" aria-label="완료 표시">${I.checkW}</button><div class="txw">${U.taskEdit === t.id ? `<input class="taskedit" id="taskedit-${esc(t.id)}" data-id="${esc(t.id)}" value="${esc(t.text)}" enterkeyhint="done" aria-label="할 일 수정">` : `<span class="tx" data-tid="${esc(t.id)}" title="두 번 눌러 수정">${esc(t.text)}</span>`}`;
   const meta = [];
   if (t.time) meta.push(`<span class="bell">${I.bell}${T(t.time)}</span>`);
   if (t.routineId && S.routines[t.routineId]) meta.push(`<span class="tagp">${I.repeat}${repName(S.routines[t.routineId].rule)}</span>`);
@@ -536,6 +536,7 @@ export function renderAll() {
     }
   }
   for (const id of Object.keys(drafts)) { const el = $(id); if (!el) delete drafts[id]; else if (el.value !== drafts[id]) el.value = drafts[id]; }
+  if (U.focusTask) { const m = $(U.focusTask); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusTask = null; }
   if (U.focusSub) { const m = $(U.focusSub); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusSub = null; }
   if (U.focusMemo) { const m = $('jr-ta'); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusMemo = null; }
   if (U.focusAdd) { const ai = $('addinput'); if (ai) { ai.focus({ preventScroll: true }); U.focusAdd = false; } }
@@ -606,6 +607,13 @@ async function doRestore(file) {
   U.busy = false; requestRender();
 }
 
+function saveTaskEdit(el) {
+  const t = S.todos[el.dataset.id]; clearDraft(el.id);
+  if (!t) return;
+  const v = el.value.trim();
+  if (!v) { el.value = t.text; return; }
+  if (v !== t.text) updateTodo(t.id, { text: v }, { future: true });
+}
 function saveSubEdit(el) {
   const t = S.todos[el.dataset.tid]; if (!t) return;
   const v = el.value.trim(), s0 = (t.subs || []).find(x => x.id === el.dataset.sid);
@@ -729,6 +737,13 @@ export function bindEvents(hooks) {
   let lastTap = { k: '', t: 0 };
   const startSubEdit = sp => { U.subEdit = sp.dataset.tid + '|' + sp.dataset.sid; U.focusSub = 'subedit-' + sp.dataset.tid + '-' + sp.dataset.sid; requestRender(); };
   document.addEventListener('click', e => {
+    const tx = e.target.closest('.tx[data-tid]');
+    if (tx) {
+      const k = 't|' + tx.dataset.tid, now = Date.now();
+      if (lastTap.k === k && now - lastTap.t < 400) { lastTap = { k: '', t: 0 }; U.taskEdit = tx.dataset.tid; U.focusTask = 'taskedit-' + tx.dataset.tid; requestRender(); }
+      else lastTap = { k, t: now };
+      return;
+    }
     const sp = e.target.closest('.subtx'); if (!sp) return;
     const k = sp.dataset.tid + '|' + sp.dataset.sid, now = Date.now();
     if (lastTap.k === k && now - lastTap.t < 400) { lastTap = { k: '', t: 0 }; startSubEdit(sp); } else lastTap = { k, t: now };
@@ -872,12 +887,14 @@ export function bindEvents(hooks) {
     else if (id === 'habitinput' && e.key === 'Enter') addHabit();
     else if (id === 'ddname' && e.key === 'Enter') { addDday(); requestRender(); }
     else if (id === 'codeinput' && e.key === 'Enter') sendRequest();
+    else if (e.target.classList.contains('taskedit')) { e.preventDefault(); if (e.key === 'Escape') { const t = S.todos[e.target.dataset.id]; if (t) e.target.value = t.text; } e.target.blur(); }
     else if (e.target.classList.contains('subedit')) { e.preventDefault(); if (e.key === 'Escape') { const t = S.todos[e.target.dataset.tid]; const s0 = t?.subs?.find(x => x.id === e.target.dataset.sid); if (s0) e.target.value = s0.text; } e.target.blur(); }
     else if (e.key === 'Enter' && (id === 'sheettext' || e.target.classList.contains('cname') || e.target.classList.contains('hname'))) e.target.blur();
     else if (e.key === 'Escape' && (U.sheet || U.ddsheet)) { U.sheet = null; U.ddsheet = false; requestRender(); }
   });
 
   document.addEventListener('focusout', e => {
+    if (e.target.classList?.contains('taskedit')) { const el = e.target; setTimeout(() => { saveTaskEdit(el); if (U.taskEdit) { U.taskEdit = null; requestRender(); } }, 0); return; }
     if (e.target.classList?.contains('subedit') && !e.target.classList.contains('inline')) { const el = e.target; if (U.keepSubEdit) return; setTimeout(() => { if (U.keepSubEdit) return; saveSubEdit(el); if (U.subEdit) { U.subEdit = null; requestRender(); } }, 0); return; }
     if (e.target.id !== 'addinput') return;
     const v = e.target.value.trim(), cat = U.adding;
@@ -897,6 +914,7 @@ export function bindEvents(hooks) {
   document.addEventListener('change', e => {
     const id = e.target.id, v = e.target.value;
     if (id === 'sheettext' || e.target.classList.contains('cname') || e.target.classList.contains('hname')) clearDraft(id);
+    if (e.target.classList.contains('taskedit')) { saveTaskEdit(e.target); return; }
     if (e.target.classList.contains('subedit')) { saveSubEdit(e.target); return; }
     const t = S.todos[U.sheet];
     if (id === 'sheettime' && t) { updateTodo(t.id, { time: v }, { future: true }); if (v) toast(`${T(v)}에 알려드릴게요`); }
