@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: build-${{ github.ref }}
@@ -41,27 +39,6 @@ jobs:
           for i in range(0, min(len(lines), 90), 10):
               print('::error title=rules::' + '%0A'.join(l.replace('%', '%25') for l in lines[i:i+10]))
           PY
-
-  web:
-    needs: rules
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-      - id: deploy
-        uses: actions/deploy-pages@v4
 
   android:
     needs: rules
@@ -119,3 +96,29 @@ jobs:
           body: 안드로이드 폰에서 아래 apk 파일을 받아 설치하세요.
           files: out/*.apk
           make_latest: true
+
+  deploy:
+    needs: android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/download-artifact@v4
+        with:
+          name: mongle-todo-apk
+          path: apk
+      - name: Put APK into the web site
+        run: |
+          cp apk/mongle-todo.apk dist/mongle-todo.apk
+          echo '{"version":"1.0.${{ github.run_number }}"}' > dist/version.json
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: mongle-todo
+          channelId: live

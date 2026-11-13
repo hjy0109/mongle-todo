@@ -37,12 +37,12 @@ a.link{color:var(--accent)}
   </div>
 
   <div class="card" style="display:flex;flex-direction:column;gap:10px">
-    <a class="btn" href="https://github.com/hjy0109/mongle-todo/releases/latest/download/mongle-todo.apk">
+    <a class="btn" href="./mongle-todo.apk" download>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
       안드로이드 앱 받기
     </a>
     <a class="btn ghost" href="./">웹에서 바로 쓰기</a>
-    <p class="note" style="margin:0;text-align:center">항상 가장 최신 버전이 받아져요</p>
+    <p class="note" id="ver" style="margin:0;text-align:center">항상 가장 최신 버전이 받아져요</p>
   </div>
 
   <div class="card">
@@ -62,5 +62,6 @@ a.link{color:var(--accent)}
     <p class="sub" style="color:var(--ink)">이 페이지에서 앱을 다시 받아 설치하면 기존 앱 위에 업데이트돼요. 할 일과 습관 기록은 그대로 남아요.</p>
   </div>
 </main>
+<script>fetch('./version.json',{cache:'no-store'}).then(r=>r.json()).then(v=>{document.getElementById('ver').textContent='최신 버전 '+v.version+' · 항상 가장 최신 버전이 받아져요'}).catch(()=>{})</script>
 </body>
 </html>
