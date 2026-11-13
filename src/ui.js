@@ -8,6 +8,7 @@ import { key, fromKey, addDays, addKey, todayKey, WD, fmtDay, esc, uid, ddLabel,
 import { THEMES, GARDENS, COLORS, SHAPES, sprite, spriteInner, themeOf, gardenOf, gardenIdOf } from './themes.js';
 import { REPEATS, repName, habitsOn, isSpecial, habitStreak } from './logic.js';
 import { isNative, notifPermission, requestNotifPermission, testNotification, saveBackup } from './native.js';
+import { initRecord, blocksOf, blocksSettingHTML, readBlock, moodBlock, shelfPageHTML, moodStatsHTML, bookAddHTML, bookInfoHTML, entryBadges, datePickerHTML, recordAct, recordClick, recordKey, recordBack, onDateTyped, bindShelfDrag, frontShelf, bookStart, bookEnd, fitSpines } from './record.js';
 
 export const VERSION = '1.0.0';
 const MOODS = ['🙂', '😊', '🥰', '😴', '🔥', '🌧️', '😵'];
@@ -33,7 +34,7 @@ const I = {
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>'
 };
-const NAV = [['todo', '할 일', I.tTodo], ['friends', '친구', I.tFriends], ['habit', '습관', I.tHabit], ['set', '설정', I.tSet]];
+const NAV = [['todo', '할 일', I.tTodo], ['friends', '친구', I.tFriends], ['habit', '기록', I.tHabit], ['set', '설정', I.tSet]];
 const navBadge = id => { const n = id === 'todo' ? unseenReactions().length : id === 'friends' ? S.social.incoming.length : 0; return n ? `<span class="badge">${n}</span>` : ''; };
 const fprof = uid => S.social.profiles[uid] || { nickname: '친구', avatar: 'rabbit' };
 
@@ -129,8 +130,7 @@ function renderTodo() {
   let h = `${errBar()}${ddayStrip()}<div class="hd">${monthNav(U.view)}
     <div class="seg"><button class="${U.view === 'week' ? 'on' : ''}" data-act="view" data-v="week">주</button><button class="${U.view === 'month' ? 'on' : ''}" data-act="view" data-v="month">월</button></div></div>
     <div class="cal">${calCells(k, U.view)}</div>
-    <div class="dayhd"><h2>${fmtDay(k)}${holTag(k)}</h2>${k !== todayKey() ? '<button class="pill-tag" data-act="today">오늘로</button>' : ''}${moodBtn(k)}</div>
-    <input class="memo" id="memo" placeholder="한 줄 일기를 남겨보세요" value="${esc(S.days[k]?.memo || '')}" autocomplete="off">
+    <div class="dayhd"><h2>${fmtDay(k)}${holTag(k)}</h2>${k !== todayKey() ? '<button class="pill-tag" data-act="today">오늘로</button>' : ''}</div>
     ${newRxCard()}<div class="cats">`;
   for (const c of P().cats) h += `<div style="--c:var(--${cc(c.color)})">${catBlock(c, k)}</div>`;
   return h + orphanBlock(k) + '</div>' + somedayBlock();
@@ -167,7 +167,7 @@ function renderHabit(wide) {
   let full = 0; for (let i = 1; i <= today.getDate(); i++) { if (total && habitsOn(S, key(new Date(today.getFullYear(), today.getMonth(), i))).length === total) full++; }
   let best = 0, run = 0; for (let i = 229; i >= 0; i--) { if (total && habitsOn(S, key(addDays(today, -i))).length === total) { run++; best = Math.max(best, run); } else run = 0; }
   const on = new Set(habitsOn(S, hk));
-  let h = `${errBar()}<div class="row" style="margin-bottom:12px"><h2 class="title" style="margin:0">습관</h2><button class="world" data-act="gardenPick">${sprite(w.sp[0], `background:${w.spBg}`)}${w.name}</button></div><div class="stack">`;
+  let h = `<div class="row" style="margin:4px 2px 0"><span class="lbl b">습관 정원</span><button class="world" data-act="gardenPick">${sprite(w.sp[0], `background:${w.spBg}`)}${w.name}</button></div>`;
   if (U.gardenPick) h += `<div class="card stack"><div class="row"><span class="lbl b">정원 고르기</span><button class="xbtn" data-act="gardenPick" aria-label="닫기">×</button></div>${gardenPicker()}</div>`;
   h += `<div class="card stack">${garden(weeks)}<div class="glegend">적음${w.lv.map(c => `<span class="gc" style="background:${c}"></span>`).join('')}많음<span style="margin-left:auto">${w.msg}</span></div></div>
     <div class="stats"><div class="stat"><div class="v">${full}</div><div class="k">이번 달 다 한 날</div></div>
@@ -184,9 +184,11 @@ function renderHabit(wide) {
       return `<div class="hrow" style="--hc:${w.lv[2]}"><button class="chk${done ? ' on' : ''}" style="--c:var(--hc)" data-act="habit" data-id="${esc(hb.id)}" aria-label="${esc(hb.name)} 완료">${I.checkW}</button><div class="txw"><span>${esc(hb.name)}</span><span class="sub">${stk ? stk + '일 연속' : '오늘부터 시작'}</span></div><div class="week7" aria-label="최근 7일">${wk}</div></div>`;
     }).join('') || '<div class="sub">편집을 눌러 습관을 추가해 보세요</div>';
   }
-  h += '</div>';
-  if (st().showBook) h += bookCard();
   return h + '</div>';
+}
+function renderRecord(wide) {
+  const parts = blocksOf().map(b => b === 'habit' ? `<div class="stack">${renderHabit(wide)}</div>` : b === 'read' ? readBlock() : moodBlock());
+  return `${errBar()}<h2 class="title">기록</h2><div class="stack">${parts.join('')}</div>`;
 }
 /* ---------- reading journal (date-based notes per book) ---------- */
 const bookNotes = bid => Object.values(S.days).filter(d => d.bnotes && (d.bnotes[bid] || '').trim()).map(d => d.date);
@@ -207,7 +209,7 @@ function journalHTML(wide) {
   const entry = k => {
     const txt = (S.days[k]?.bnotes?.[b.id] || ''), rg = S.days[k]?.reading?.[b.id], editing = U.jEdit === k;
     const long = txt.length > 140 || txt.split('\n').length > 4, full = U.jFull === k;
-    let h = `<div class="entry${k === TK ? ' today' : ''}"><div class="ehd"><span class="d">${k === TK ? '오늘 · ' : ''}${fmtDay(k)}</span>${rg ? `<span class="pgrange">p.${rg[0]} → ${rg[1]}</span>` : ''}${!editing && long ? `<button class="emore" data-act="jFull" data-k="${k}">${full ? '접기 ▴' : '펼치기 ▾'}</button>` : ''}</div>`;
+    let h = `<div class="entry${k === TK ? ' today' : ''}"><div class="ehd"><span class="d">${k === TK ? '오늘 · ' : ''}${fmtDay(k)}</span>${rg ? `<span class="pgrange">p.${rg[0]} → ${rg[1]}</span>` : ''}${entryBadges(b, k)}${!editing && long ? `<button class="emore" data-act="jFull" data-k="${k}">${full ? '접기 ▴' : '펼치기 ▾'}</button>` : ''}</div>`;
     if (editing) h += `${U.jPast ? `<label class="daypick">날짜 <input type="date" id="jr-date" value="${k}" max="${TK}"></label>` : ''}<textarea id="jr-ta" class="jr-ta" placeholder="이날 읽으며 든 생각, 인상 깊은 문장을 적어요">${esc(txt)}</textarea><div class="eacts"><button data-act="jCancel">취소</button><button class="btn sm" data-act="jSave" data-k="${k}">저장</button></div>`;
     else if (txt.trim()) h += `<div class="etext${long && !full ? ' clamp' : ''}">${esc(txt)}</div><div class="eacts"><button data-act="jEdit" data-k="${k}">수정</button><button class="${armed('jdel:' + k) ? 'warn' : ''}" data-act="jDel" data-k="${k}">${armed('jdel:' + k) ? '한 번 더 누르면 삭제' : '삭제'}</button></div>`;
     else h += `<div class="sub">읽은 기록만 있어요.</div><div class="eacts"><button data-act="jEdit" data-k="${k}">메모 쓰기</button></div>`;
@@ -215,13 +217,13 @@ function journalHTML(wide) {
   };
   return `<div class="jpage${wide ? ' wide' : ''}" role="dialog" aria-label="${esc(b.title)} 독서 메모"><div class="jbox">
     <div class="pghd"><button class="back" data-act="jClose" aria-label="뒤로">${I.left}</button>
-      <div class="t"><b>${esc(b.title)}</b><span class="sub">p.${b.page} / ${b.total} · ${pct}% · 메모 ${bookNotes(b.id).length}개</span></div>
+      <div class="t"><b>${esc(b.title)}</b><span class="sub">${b.done ? '다 읽음' : `p.${b.page} / ${b.total} · ${pct}%`}</span></div>
       <button class="btn ghost sm" data-act="jCopy">전체 복사</button></div>
-    <div class="pgbody">${list.length ? list.map(entry).join('') : '<div class="sub" style="text-align:center;padding:30px 0">아직 메모가 없어요.<br>아래 ‘+ 오늘 메모’로 첫 메모를 남겨 보세요.</div>'}
+    <div class="pgbody">${bookInfoHTML(b)}<div class="sub b2" style="margin:16px 2px 8px">날짜별 메모 · ${bookNotes(b.id).length}개</div>${list.length ? list.map(entry).join('') : '<div class="sub" style="text-align:center;padding:30px 0">아직 메모가 없어요.<br>아래 ‘+ 오늘 메모’로 첫 메모를 남겨 보세요.</div>'}
       ${U.jEdit ? '' : '<button class="linkbtn" data-act="jPast">지난 날짜에 메모 남기기</button>'}
       ${S.loadingDays ? '<div class="sub" style="text-align:center">예전 기록 불러오는 중…</div>' : ''}</div>
     ${U.jEdit ? '' : '<button class="btn fab" data-act="jToday">+ 오늘 메모</button>'}
-    ${U.jCopy ? `<div class="copyprev"><div class="row"><b style="font-size:14px">${U.jCopy === 'ok' ? '복사했어요. 붙여넣기만 하면 돼요' : '아래 글을 길게 눌러 복사하세요'}</b><button class="sub" data-act="jCopyClose">닫기</button></div><textarea readonly class="copyta" id="jr-copy">${esc(journalCopyText(b))}</textarea></div>` : ''}
+    ${datePickerHTML()}${U.jCopy ? `<div class="copyprev"><div class="row"><b style="font-size:14px">${U.jCopy === 'ok' ? '복사했어요. 붙여넣기만 하면 돼요' : '아래 글을 길게 눌러 복사하세요'}</b><button class="sub" data-act="jCopyClose">닫기</button></div><textarea readonly class="copyta" id="jr-copy">${esc(journalCopyText(b))}</textarea></div>` : ''}
   </div></div>`;
 }
 function saveJournal(k, text) {
@@ -309,7 +311,7 @@ function renderSettings() {
   h += `<div class="hint">카테고리를 지워도 그 안의 할 일은 ‘분류 없음’으로 남아요.${S.backend.social?.enabled ? ' ‘친구 공개’로 둔 카테고리의 할 일만 친구가 볼 수 있어요.' : ''}</div></div>
     <div class="card row"><div><div class="lbl">시간 표시</div><div class="sub">예: ${T('14:00')}</div></div><div class="seg"><button class="${s.h24 ? 'on' : ''}" data-act="h24" data-v="1">24시간</button><button class="${s.h24 ? '' : 'on'}" data-act="h24" data-v="0">12시간</button></div></div>
     <div class="card row"><span class="lbl">한 주의 시작</span><div class="seg"><button class="${s.weekStart === 0 ? 'on' : ''}" data-act="ws" data-v="0">일요일</button><button class="${s.weekStart === 1 ? 'on' : ''}" data-act="ws" data-v="1">월요일</button></div></div>
-    <div class="card row"><div><div class="lbl">지금 읽는 책 카드</div><div class="sub">습관 탭 아래에 보여요</div></div><button class="sw${s.showBook ? ' on' : ''}" data-act="showBook" aria-label="책 카드"></button></div>
+    ${blocksSettingHTML()}
     <div class="card stack"><div><div class="lbl">데이터 백업</div><div class="sub">모든 할 일, 습관, D-day, 설정을 파일 하나로 저장하거나 되돌려요</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="backup"${U.busy ? ' disabled' : ''}>백업 파일 저장</button><button class="btn ghost sm" data-act="restore"${U.busy ? ' disabled' : ''}>백업에서 복원</button></div>
       <input type="file" id="restorefile" accept="application/json,.json" hidden></div>
@@ -429,7 +431,7 @@ function webSide() {
 }
 function webMain() {
   const k = U.selected;
-  if (U.tab !== 'todo') return `<div class="inner">${U.tab === 'habit' ? renderHabit(true) : U.tab === 'friends' ? renderFriends() : renderSettings()}</div>`;
+  if (U.tab !== 'todo') return `<div class="inner">${U.tab === 'habit' ? renderRecord(true) : U.tab === 'friends' ? renderFriends() : renderSettings()}</div>`;
   return `${errBar()}${ddayStrip()}<div class="whd"><h2>${fmtDay(k)}${holTag(k)}</h2>${k !== todayKey() ? '<button class="btn ghost sm" data-act="today">오늘로</button>' : ''}
     <div class="month" style="font-size:15px"><button class="navbtn" data-act="nav" data-view="week" data-d="-1" aria-label="지난주">${I.left}</button><button class="navbtn" data-act="nav" data-view="week" data-d="1" aria-label="다음 주">${I.right}</button></div></div>
     <div class="cal big">${calCells(k, 'week')}</div>${newRxCard()}
@@ -443,8 +445,6 @@ function webRight() {
       <circle cx="60" cy="60" r="46" transform="rotate(-90 60 60)" style="fill:none;stroke:var(--accent);stroke-width:12;stroke-linecap:round" stroke-dasharray="${(C * p).toFixed(1)} ${C.toFixed(1)}"/>
       <text x="60" y="68" text-anchor="middle" style="fill:var(--ink);font-weight:700;font-size:24px">${Math.round(p * 100)}%</text></svg>
       <div class="sub">${a.length}개 중 ${dn}개 완료 · 습관 ${hon}/${P().habits.length}</div></div>
-    <div class="card stack"><div class="row"><span class="lbl">오늘의 기분</span>${moodBtn(k)}</div>
-      <input class="memo" id="memo" style="margin-top:0" placeholder="한 줄 일기를 남겨보세요" value="${esc(S.days[k]?.memo || '')}" autocomplete="off"></div>
     <div class="card stack"><div class="lbl">알림 예정</div>${timed.length ? timed.map(t => timedRow(k, t)).join('') : '<div class="sub">알림을 단 할 일이 없어요</div>'}</div>`;
 }
 
@@ -499,7 +499,7 @@ function loginHTML() {
 
 /* ---------------- render ---------------- */
 const drafts = {};
-const NO_DRAFT = new Set(['memo', 'pf-name-x', 'sheetdate', 'sheettime', 't-morning', 't-evening', 'dddate', 'lg-email', 'lg-pw']);
+const NO_DRAFT = new Set(['memo', 'diary', 'dptyped', 'shelfq', 'bk-q', 'pf-name-x', 'sheetdate', 'sheettime', 't-morning', 't-evening', 'dddate', 'lg-email', 'lg-pw']);
 const clearDraft = (...ids) => ids.forEach(i => delete drafts[i]);
 let layout = null;
 const root = () => document.getElementById('app');
@@ -517,7 +517,7 @@ export function renderAll() {
   if (want === 'login') { const f = root().querySelector('.err'); if (f) f.textContent = U.loginErr; const b = root().querySelector('button[type=submit]'); if (b) { b.disabled = U.busy; b.textContent = U.busy ? '로그인 중…' : '로그인'; } return; }
   if (want === 'splash') return;
   if (want === 'phone') {
-    setHTML($('scr'), U.tab === 'todo' ? renderTodo() : U.tab === 'habit' ? renderHabit(false) : U.tab === 'friends' ? renderFriends() : renderSettings());
+    setHTML($('scr'), U.tab === 'todo' ? renderTodo() : U.tab === 'habit' ? renderRecord(false) : U.tab === 'friends' ? renderFriends() : renderSettings());
     setHTML($('tabs'), NAV.map(([id, l, ic]) => `<button class="tab${U.tab === id ? ' on' : ''}" data-tab="${id}">${ic}${l}${navBadge(id)}</button>`).join(''));
   } else {
     $('web').className = 'web' + (U.tab === 'todo' ? '' : ' notodo');
@@ -526,7 +526,8 @@ export function renderAll() {
     $('wright').hidden = U.tab !== 'todo';
     if (U.tab === 'todo') setHTML($('wright'), webRight());
   }
-  const sh = U.journal ? journalHTML(want === 'web') : sheetHTML(); if (!sh || U.journal) lastSheetKey = ''; setHTML($('ov'), sh);
+  const wideL = want === 'web', page = U.journal ? journalHTML(wideL) : U.shelf ? shelfPageHTML(wideL) : U.moodStats ? moodStatsHTML(wideL) : '';
+  const sh = (page || sheetHTML()) + bookAddHTML(wideL); if (page) lastSheetKey = ''; setHTML($('ov'), sh);
   if (focusId) {
     const el = $(focusId);
     if (el && el !== document.activeElement) {
@@ -539,6 +540,8 @@ export function renderAll() {
   if (U.focusTask) { const m = $(U.focusTask); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusTask = null; }
   if (U.focusSub) { const m = $(U.focusSub); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusSub = null; }
   if (U.focusMemo) { const m = $('jr-ta'); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusMemo = null; }
+  fitSpines();
+  if (U.focusDiary) { const m = $('diary'); if (m) { m.focus({ preventScroll: true }); m.setSelectionRange(m.value.length, m.value.length); } U.focusDiary = false; }
   if (U.focusAdd) { const ai = $('addinput'); if (ai) { ai.focus({ preventScroll: true }); U.focusAdd = false; } }
 }
 const $ = id => document.getElementById(id);
@@ -733,6 +736,9 @@ function bindDrag() {
 }
 export function bindEvents(hooks) {
   bindDrag();
+  initRecord({ toast, render: requestRender, armed });
+  bindShelfDrag();
+  document.addEventListener('click', e => { recordClick(e); });
   // double tap / double click on a sub-task opens inline editing (own timing so it works in every WebView)
   let lastTap = { k: '', t: 0 };
   const startSubEdit = sp => { U.subEdit = sp.dataset.tid + '|' + sp.dataset.sid; U.focusSub = 'subedit-' + sp.dataset.tid + '-' + sp.dataset.sid; requestRender(); };
@@ -754,7 +760,7 @@ export function bindEvents(hooks) {
     const el = e.target.closest('[data-act]');
     if (!el) { if (U.arm) { U.arm = null; requestRender(); } return; }
     const a = el.dataset.act, id = el.dataset.id, v = el.dataset.v;
-    if (a === 'close' && e.target !== el) return;
+    if ((a === 'close' || a === 'bkAddClose' || a === 'dpClose') && e.target !== el && !el.dataset.x) return;
     const prevArm = U.arm; U.arm = null;
     const arm = k => { if (prevArm === k) return true; U.arm = k; return false; };
     const sheetT = () => S.todos[U.sheet];
@@ -795,21 +801,22 @@ export function bindEvents(hooks) {
       case 'book': { const list = books(), b = list.find(x => x.id === id); if (b) { const page = Math.max(0, Math.min(b.total, b.page + +v)), fin = page === b.total;
         { const TK = todayKey(), d = S.days[TK] || {}, cur = d.reading?.[id]; let rg = null;
           if (+v > 0) rg = cur ? [cur[0], page] : [b.page, page]; else if (cur) rg = [cur[0], Math.max(cur[0], page)];
-          if (rg) { const reading = { ...(d.reading || {}) }; if (rg[1] > rg[0]) reading[id] = rg; else delete reading[id]; putDay(TK, { reading }); } } saveProfile({ books: list.map(x => x.id === id ? { ...x, page, done: fin, doneAt: fin ? Date.now() : null } : x), book: null }); if (fin) toast(`‘${b.title}’ 다 읽었어요! 다 읽은 책으로 옮겼어요`); } break; }
-      case 'bookEdit': U.bookEdit = id || null; clearDraft('bk-title', 'bk-page', 'bk-total'); break;
+          if (rg) { const reading = { ...(d.reading || {}) }; if (rg[1] > rg[0]) reading[id] = rg; else delete reading[id]; putDay(TK, { reading }); } } const fs = fin ? frontShelf() : undefined; saveProfile({ books: list.map(x => x.id === id ? { ...x, page, done: fin, doneAt: fin ? Date.now() : null, endDate: fin ? todayKey() : null, startDate: bookStart(x) || todayKey(), ...(fs !== undefined ? { shelf: fs } : {}) } : x), book: null }); if (fin) toast(`‘${b.title}’ 다 읽었어요! 책장에 꽂았어요`); } break; }
+      case 'bookEdit': U.bookEdit = id || null; clearDraft('bk-title', 'bk-author', 'bk-page', 'bk-total'); break;
       case 'bookSave': {
         const title = $('bk-title').value.trim(), total = Math.max(1, +$('bk-total').value || 0), page = Math.max(0, Math.min(total, +$('bk-page').value || 0));
         if (!title || !+$('bk-total').value) { toast('제목과 전체 쪽수를 넣어 주세요'); break; }
-        const list = books(), fin = page === total;
-        const nb = { title, page, total, done: fin, doneAt: fin ? Date.now() : null };
+        const list = books(), fin = page === total, old = list.find(x => x.id === id);
+        const nb = { title, page, total, done: fin, doneAt: fin ? (old?.done ? old.doneAt : Date.now()) : null, endDate: fin ? (old?.done ? bookEnd(old) || todayKey() : todayKey()) : null };
+        if ($('bk-author')) nb.author = $('bk-author').value.trim();
         saveProfile({ books: id ? list.map(x => x.id === id ? { ...x, ...nb } : x) : [...list, { id: uid(), ...nb }], book: null });
         U.bookEdit = null; clearDraft('bk-title', 'bk-page', 'bk-total'); break;
       }
-      case 'bookDel': if (arm('bdel:' + id)) { saveProfile({ books: books().filter(x => x.id !== id), book: null }); U.bookEdit = null; } break;
-      case 'bookReopen': saveProfile({ books: books().map(x => x.id === id ? { ...x, done: false, doneAt: null, page: 0 } : x), book: null }); toast('다시 읽기 시작해요'); break;
+      case 'bookDel': if (arm('bdel:' + id)) { saveProfile({ books: books().filter(x => x.id !== id), book: null }); U.bookEdit = null; if (U.journal === id) U.journal = null; toast('책을 지웠어요'); } break;
+      case 'bookReopen': saveProfile({ books: books().map(x => x.id === id ? { ...x, done: false, doneAt: null, page: 0, rounds: [...(x.rounds || []), [bookStart(x) || '', bookEnd(x) || '']], startDate: todayKey(), endDate: null } : x), book: null }); toast('다시 읽기 시작해요'); break;
       case 'booksDone': U.booksDone = !U.booksDone; break;
-      case 'journal': { const b = books().find(x => x.id === id); if (b) { migrateMemo(b); U.journal = id; U.jEdit = null; U.jFull = null; U.jCopy = null; loadAllDays(); } break; }
-      case 'jClose': flushJournal(); U.journal = null; U.jEdit = null; U.jCopy = null; break;
+      case 'journal': { if (U.shelfEdit && el.closest('#fullshelf')) break; const b = books().find(x => x.id === id); if (b) { U.bookEdit = null; U.dp = null; migrateMemo(b); U.journal = id; U.jEdit = null; U.jFull = null; U.jCopy = null; loadAllDays(); } break; }
+      case 'jClose': flushJournal(); U.journal = null; U.jEdit = null; U.jCopy = null; U.bookEdit = null; U.dp = null; break;
       case 'jFull': U.jFull = U.jFull === el.dataset.k ? null : el.dataset.k; break;
       case 'jEdit': flushJournal(); U.jEdit = el.dataset.k; U.jPast = false; U.focusMemo = 1; break;
       case 'jToday': U.jEdit = todayKey(); U.jPast = false; U.focusMemo = 1; break;
@@ -863,6 +870,7 @@ export function bindEvents(hooks) {
       case 'pfSave': saveFriendProfile(); return;
       case 'share': setShare(id, v === '1'); toast(v === '1' ? '친구에게 이 카테고리를 보여줘요' : '이 카테고리는 나만 봐요'); break;
       case 'clearerr': S.error = ''; break;
+      default: recordAct(a, el, arm);
     }
     requestRender();
   });
@@ -883,6 +891,7 @@ export function bindEvents(hooks) {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== 'Escape') return;
     if (e.isComposing || e.keyCode === 229) return;
+    if (recordKey(e)) return;
     const id = e.target.id, v = (e.target.value || '').trim();
     if (id === 'addinput') { e.preventDefault(); if (e.key === 'Enter' && v) { addTodo(U.selected, U.adding, v); e.target.value = ''; clearDraft(id); U.focusAdd = true; } else if (e.key === 'Escape' || !v) U.adding = null; requestRender(); }
     else if (id === 'subinput' && e.key === 'Enter' && v) { const t = S.todos[U.sheet]; if (t) putTodo({ ...t, subs: [...(t.subs || []), { id: uid(), text: v, done: false }] }); e.target.value = ''; clearDraft(id); }
@@ -912,7 +921,8 @@ export function bindEvents(hooks) {
 
   document.addEventListener('input', e => {
     if (e.target.id && !NO_DRAFT.has(e.target.id) && e.target.type !== 'file') drafts[e.target.id] = e.target.value;
-    if (e.target.id === 'memo') { const k = U.selected, v = e.target.value; later(() => putDay(k, { memo: v })); }
+    if (e.target.id === 'dptyped') onDateTyped(e.target);
+    if (e.target.id === 'shelfq') { U.shelfQ = e.target.value; requestRender(); }
   });
 
   document.addEventListener('change', e => {
@@ -944,6 +954,7 @@ function flushJournal() {
   clearDraft('jr-ta');
 }
 export function handleBack() {
+  if (recordBack()) { requestRender(); return true; }
   if (U.journal) { if (U.jCopy) U.jCopy = null; else if (U.jEdit) { flushJournal(); U.jEdit = null; } else U.journal = null; requestRender(); return true; }
   if (U.sheet || U.ddsheet) { U.sheet = null; U.ddsheet = false; requestRender(); return true; }
   if (U.adding) { U.adding = null; requestRender(); return true; }
