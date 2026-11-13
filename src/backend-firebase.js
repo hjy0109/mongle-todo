@@ -36,8 +36,8 @@ export function createFirebaseBackend(config) {
       const changes = snap => snap.docChanges().map(c => ({ type: c.type, id: c.doc.id, data: c.doc.data() }));
       const opts = { includeMetadataChanges: true };
       unsubs.push(onSnapshot(ref('meta', 'profile'), opts, s => { h.profile(s.exists() ? s.data() : null, s.metadata.fromCache); markSynced('profile', s); }, h.error));
-      unsubs.push(onSnapshot(query(col('todos'), where('date', '>=', todoCutoff)), opts, s => { const c = changes(s); if (c.length) h.todos(c); markSynced('todos', s); }, h.error));
-      unsubs.push(onSnapshot(query(col('todos'), where('date', '==', '')), opts, s => { const c = changes(s); if (c.length) h.todos(c); markSynced('someday', s); }, h.error));
+      unsubs.push(onSnapshot(query(col('todos'), where('date', '>=', todoCutoff)), opts, s => { const c = changes(s); if (c.length) h.todos(c, t => !!t.date && t.date >= todoCutoff); markSynced('todos', s); }, h.error));
+      unsubs.push(onSnapshot(query(col('todos'), where('date', '==', '')), opts, s => { const c = changes(s); if (c.length) h.todos(c, t => !t.date); markSynced('someday', s); }, h.error));
       unsubs.push(onSnapshot(col('routines'), opts, s => { const c = changes(s); if (c.length) h.routines(c); markSynced('routines', s); }, h.error));
       unsubs.push(onSnapshot(query(col('days'), where('date', '>=', dayCutoff)), opts, s => { const c = changes(s); if (c.length) h.days(c); }, h.error));
       return () => unsubs.forEach(u => u());

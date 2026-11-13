@@ -45,7 +45,13 @@ export function handlers() {
       }
       render();
     },
-    todos(c) { applyChanges(S.todos, c); idx = null; render(); },
+    // A todo that moves between "someday" and a date leaves one query and joins the other.
+    // The two listeners can fire in either order, so a 'removed' only deletes the local copy
+    // while that copy still belongs to the query that reported it.
+    todos(c, belongs) {
+      c.forEach(x => { if (x.type !== 'removed') S.todos[x.id] = x.data; else if (!belongs || !S.todos[x.id] || belongs(S.todos[x.id])) delete S.todos[x.id]; });
+      idx = null; render();
+    },
     routines(c) { applyChanges(S.routines, c); render(); },
     days(c) { applyChanges(S.days, c); render(); },
     synced() {
@@ -93,10 +99,10 @@ export function deleteTodo(id) {
   if (t.routineId && S.routines[t.routineId]) { const r = S.routines[t.routineId]; putRoutine({ ...r, skips: [...new Set([...(r.skips || []), t.date])] }); }
   removeTodo(id);
 }
-export function moveTodo(id, date) {
+export function moveTodo(id, date, patch = {}) {
   const t = S.todos[id]; if (!t || t.date === date) return;
   if (t.routineId && S.routines[t.routineId]) { const r = S.routines[t.routineId]; putRoutine({ ...r, skips: [...new Set([...(r.skips || []), t.date])] }); }
-  const nt = { ...t, date, routineId: null, order: Date.now() };
+  const nt = { ...t, ...patch, date, routineId: null, order: Date.now() };
   if (t.id.startsWith('r-')) { removeTodo(t.id); nt.id = uid(); }
   putTodo(nt);
   return nt.id;

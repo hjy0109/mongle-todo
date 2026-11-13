@@ -116,8 +116,8 @@ function somedayBlock() {
   const items = todosOn('');
   let h = `<div class="someday"><button class="sdhead" data-act="sdtoggle">언젠가 할 일 <span class="pill-tag">${items.length}</span><span class="tog">${U.sdOpen ? '접기' : '펼치기'}</span></button>`;
   if (U.sdOpen) {
-    h += items.map(t => { const c = catOf(t.cat); return `<div class="plan-i" style="--c:var(--${cc(c.color)})"><span class="chip sm"><span class="dot"></span>${esc(c.name)}</span><span class="nm">${esc(t.text)}</span><button class="btn ghost sm" data-act="schedule" data-id="${esc(t.id)}">이 날 하기</button><button class="more" data-act="more" data-id="${esc(t.id)}" aria-label="메뉴">${I.dots}</button></div>`; }).join('') || '<div class="sub">비어 있어요</div>';
-    h += `<div class="inline-add"><input id="somedayinput" placeholder="날짜 없이 적어두기 (Enter)" autocomplete="off" enterkeyhint="done"></div><div class="hint">‘이 날 하기’를 누르면 지금 보고 있는 ${fmtDay(U.selected)}로 옮겨져요.</div>`;
+    h += items.map(t => { const c = catOf(t.cat); return `<div class="plan-i" style="--c:var(--${cc(c.color)})"><span class="chip sm"><span class="dot"></span>${esc(c.name)}</span><span class="nm">${esc(t.text)}</span><button class="btn ghost sm${U.schedPick === t.id ? ' on' : ''}" data-act="schedule" data-id="${esc(t.id)}">이 날 하기</button><button class="more" data-act="more" data-id="${esc(t.id)}" aria-label="메뉴">${I.dots}</button></div>${U.schedPick === t.id ? `<div class="schedpick"><span class="sub">${fmtDay(U.selected)} · 어느 카테고리에 넣을까요?</span><div class="chips">${P().cats.map(x => `<button class="chip${x.id === t.cat ? ' on' : ''}" style="--c:var(--${cc(x.color)})" data-act="schedcat" data-id="${esc(t.id)}" data-cat="${esc(x.id)}"><span class="dot"></span>${esc(x.name)}</button>`).join('')}</div></div>` : ''}`; }).join('') || '<div class="sub">비어 있어요</div>';
+    h += `<div class="inline-add"><input id="somedayinput" placeholder="날짜 없이 적어두기 (Enter)" autocomplete="off" enterkeyhint="done"></div><div class="hint">‘이 날 하기’를 누르고 카테고리를 고르면 지금 보고 있는 ${fmtDay(U.selected)}로 옮겨져요.</div>`;
   }
   return h + '</div>';
 }
@@ -782,7 +782,11 @@ export function bindEvents(hooks) {
       case 'ddadd': addDday(); break;
       case 'pin': saveProfile({ ddays: P().ddays.map(d => d.id === id ? { ...d, pin: !d.pin } : d) }); break;
       case 'sdtoggle': U.sdOpen = !U.sdOpen; break;
-      case 'schedule': moveTodo(id, U.selected); toast(`${fmtDay(U.selected)}로 옮겼어요`); break;
+      case 'schedule': {
+        if (P().cats.length > 1) { U.schedPick = U.schedPick === id ? null : id; break; }
+        moveTodo(id, U.selected, P().cats[0] ? { cat: P().cats[0].id } : {}); U.schedPick = null; toast(`${fmtDay(U.selected)}로 옮겼어요`); break;
+      }
+      case 'schedcat': { const c = catOf(el.dataset.cat); moveTodo(id, U.selected, { cat: el.dataset.cat }); U.schedPick = null; toast(`${fmtDay(U.selected)} ‘${c.name}’에 넣었어요`); break; }
       case 'habit': { const k = U.hdate || todayKey(); toggleHabit(k, id); const total = P().habits.length; if (habitsOn(S, k).length === total && total) toast(isSpecial(S, k) ? `${gardenOf(st()).unit}을(를) 만났어요!` : '습관을 모두 끝냈어요'); break; }
       case 'hdate': U.hdate = el.dataset.k && el.dataset.k !== todayKey() ? el.dataset.k : null; break;
       case 'habitEdit': U.habitEdit = !U.habitEdit; break;
