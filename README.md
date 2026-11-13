@@ -15,7 +15,7 @@
 | `src/` | 앱 화면과 로직 (Vite + 순수 JavaScript) |
 | `src/config.js` | Firebase 웹 설정값 (비워 두면 이 기기에만 저장하는 모드) |
 | `android/` | Capacitor 안드로이드 프로젝트, 위젯(`MongleWidget.java`, `WidgetService.java`) |
-| `.github/workflows/build.yml` | 코드를 올리면 APK를 만들고 웹과 함께 Firebase Hosting에 올리는 설정 |
+| `.github/workflows/build.yml` | 코드를 올리면 코드를 올리면 웹과 APK를 자동으로 만들어 비공개 링크에 올리는 설정 |
 | `firestore.rules` | Firestore 보안 규칙 (본인 계정만 읽고 쓰기) |
 
 ## 데이터 보안
@@ -29,7 +29,7 @@
 
 1. 코드를 고쳐서 GitHub `main` 브랜치에 올려요.
 2. GitHub Actions가 자동으로 웹을 배포하고 APK를 만들어요 (약 5~8분).
-3. 웹: `https://mongle-todo.web.app/` 에 바로 반영돼요. APK는 `https://mongle-todo.web.app/download.html`에서 받아요.
+3. 웹과 앱 다운로드는 공유받은 링크에서만 열려요.
 4. 폰: 저장소의 **Releases**에서 새 APK를 받아 설치하면 기존 앱 위에 업데이트돼요. 데이터는 그대로예요.
 
 ## 직접 실행해 보기 (선택)

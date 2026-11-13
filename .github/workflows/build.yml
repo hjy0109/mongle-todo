@@ -7,6 +7,9 @@ on:
 
 permissions:
   contents: write
+  actions: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: build-${{ github.ref }}
@@ -40,9 +43,11 @@ jobs:
               print('::error title=rules::' + '%0A'.join(l.replace('%', '%25') for l in lines[i:i+10]))
           PY
 
-  android:
+  build:
     needs: rules
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -85,40 +90,28 @@ jobs:
               chunk = '%0A'.join(l.replace('%', '%25').replace('\r', '') for l in lines[i:i+10])
               print('::error title=gradle::' + chunk)
           PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mongle-todo-apk
-          path: out/*.apk
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: 몽글 투두 1.0.${{ github.run_number }}
-          body: 안드로이드 폰에서 아래 apk 파일을 받아 설치하세요.
-          files: out/*.apk
-          make_latest: true
-
-  deploy:
-    needs: android
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/download-artifact@v4
-        with:
-          name: mongle-todo-apk
-          path: apk
-      - name: Put APK into the web site
+      - name: Put the app and the APK behind the private link
+        env:
+          KEY: ${{ secrets.DOWNLOAD_KEY }}
         run: |
-          cp apk/mongle-todo.apk dist/mongle-todo.apk
-          echo '{"version":"1.0.${{ github.run_number }}"}' > dist/version.json
-      - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+          if [ ${#KEY} -lt 16 ] || ! [[ "$KEY" =~ ^[A-Za-z0-9_-]+$ ]]; then echo "::error title=link::DOWNLOAD_KEY secret must be 16+ letters/numbers"; exit 1; fi
+          mkdir -p site
+          cp -r dist "site/$KEY"
+          cp out/mongle-todo.apk "site/$KEY/mongle-todo.apk"
+          echo '{"version":"1.0.${{ github.run_number }}"}' > "site/$KEY/version.json"
+          printf '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>.</title>' > site/index.html
+          cp site/index.html site/404.html
+          touch site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
         with:
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: mongle-todo
-          channelId: live
+          path: site
+          retention-days: 1
+      - id: deploy
+        uses: actions/deploy-pages@v4
+      - name: Remove public copies of old APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R: ${{ github.repository }}
+        run: |
+          for t in $(gh release list -R "$R" --limit 300 --json tagName -q '.[].tagName'); do gh release delete "$t" -R "$R" --yes --cleanup-tag || true; done
+          for id in $(gh api "repos/$R/actions/artifacts?per_page=100" --paginate -q '.artifacts[] | select(.name != "github-pages") | .id'); do gh api -X DELETE "repos/$R/actions/artifacts/$id" || true; done
